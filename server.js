@@ -50,6 +50,7 @@ app.use(morgan('combined',  { "stream": accessLogStream }));
 // router.use('/analytics', require('./analytics'));
 // router.use('/mailing', require('./emails'));
 router.use('/posterize', require('./posterize'));
+router.use('/patent', require('./patent'));
 
 // const potrace = require('potrace');
 
