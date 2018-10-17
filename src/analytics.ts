@@ -17,7 +17,7 @@
 //   analytics = google.analytics('v3');
 // });
 
-// // Route 
+// // Route
 // router.get("/getViews", (req, res) => {
 //   const path = req.query.path;
 //   queryPageViews(path, res);
@@ -39,7 +39,7 @@
 //       return;
 //     }
 //     res.send(JSON.stringify({views: response.data.totalsForAllResults['ga:pageviews']}));
-//   });  
+//   });
 // }
 
 // module.exports = router;
