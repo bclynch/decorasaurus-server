@@ -4,7 +4,7 @@ import potrace from 'potrace';
 export function posterizeImage(buffer: Buffer, steps: number, color: string, background: string): Promise<string> {
   return new Promise((resolve, reject) => {
     console.log('Starting Tracing');
-    potrace.posterize(buffer, { steps, color, background }, (err: Error, svg: string) => {
+    potrace.posterize(buffer, { steps, color }, (err: Error, svg: string) => {
       if (err) reject(err);
 
       svg = scaleSVG(svg);

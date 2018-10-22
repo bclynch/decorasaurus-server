@@ -1,6 +1,5 @@
 import express from 'express';
 const router = express.Router();
-import { Response } from 'koa';
 import puppeteer from 'puppeteer';
 import request from 'request';
 import { traceImage } from './trace';
@@ -25,13 +24,15 @@ router.post('/fetch', (req, res) => {
 
     const result = await page.evaluate(() => {
 
-      const data = []; // Create an empty array that will store our data
+      const data: { label: string, imgArr: string[] } = { label: '', imgArr: [] };
       const images = document.querySelectorAll('img.image-carousel');
 
       for (const image of images) {
-        data.push(image.src);
+        data.imgArr.push(image.src);
       }
 
+      const patentName: HTMLElement = document.querySelector('#title');
+      data.label = patentName.innerText;
       // return images.map((image) => image.src);
       return data;
     });
@@ -44,7 +45,7 @@ router.post('/fetch', (req, res) => {
     console.log(imagePaths);
 
     // remove the /thumbnails part of url path to get larger image
-    res.send({resp: imagePaths.map((image) => image.split('/thumbnails').join(''))});
+    res.send({resp: { name: imagePaths.label, images: imagePaths.imgArr.map((image) => image.split('/thumbnails').join(''))});
   },
   (err) => res.send(JSON.stringify({ err })));
 },
@@ -53,7 +54,7 @@ router.post('/fetch', (req, res) => {
 // tracing patent and returning
 router.post('/trace', (req, res) => {
   console.log(req.body.patent);
-  requestFetch.get(req.body.patent, (body) => {
+  requestFetch.get(req.body.patent, (err: Error, resp: any, body) => {
     traceImage(body, req.body.color)
       .then(
         (svg) => res.send({resp: svg}),
