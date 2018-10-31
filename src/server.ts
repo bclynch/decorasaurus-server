@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import fs from 'fs';
 import morgan from 'morgan';
+import moltinRouter from './moltin';
 import patentRouter from './patent';
 import posterizeRouter from './posterize';
 const app = express();
@@ -53,6 +54,7 @@ app.use(morgan('combined',  { stream: accessLogStream }));
 // routes
 router.use('/posterize', posterizeRouter);
 router.use('/patent', patentRouter);
+router.use('/moltin', moltinRouter);
 
 // api mount path
 app.use('/api', router);
