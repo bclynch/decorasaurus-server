@@ -24,6 +24,7 @@
     "@types/puppeteer": "^1.9.0",
     "@types/request": "^2.47.1",
     "@types/stripe": "^6.0.3",
+    "aws-sdk": "^2.348.0",
     "axios": "^0.18.0",
     "body-parser": "^1.17.2",
     "compression": "^1.7.2",

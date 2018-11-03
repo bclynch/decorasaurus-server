@@ -8,6 +8,7 @@ import morgan from 'morgan';
 import moltinRouter from './moltin';
 import patentRouter from './patent';
 import posterizeRouter from './posterize';
+import posterRouter from './poster';
 import stripeRouter from './stripe';
 const app = express();
 const router = express.Router();
@@ -57,6 +58,7 @@ router.use('/posterize', posterizeRouter);
 router.use('/patent', patentRouter);
 router.use('/moltin', moltinRouter);
 router.use('/stripe', stripeRouter);
+router.use('/poster', posterRouter);
 
 // api mount path
 app.use('/api', router);
