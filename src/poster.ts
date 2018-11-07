@@ -27,7 +27,7 @@ router.post('/process', upload.single('poster'), (req, res) => {
   });
   // create a pdf for our image and upload to S3 and return with response to be added to custom product field
   const pdfPromise: any = new Promise((resolve, reject) => {
-    createAndUploadPDF(req.body.poster).then((data) => {
+    createAndUploadPDF(req.body.poster, req.body.orientation).then((data) => {
       console.log('Processed img link arr: ', data);
 
       S3LinksArr.push(data);
@@ -91,18 +91,24 @@ function resizeAndUploadImage(file: string, sizes: Array<{ width: number }>, qua
 /////////////////// PDF Processing
 ///////////////////////////////////////////////////////
 
-function createAndUploadPDF(image: string): Promise <{ type: 'thumbnail' | 'pdf', S3Url: string }> {
+function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape'): Promise <{ type: 'thumbnail' | 'pdf', S3Url: string }> {
+  const height = orientation === 'Portrait' ?  841.89 : 595.28;
+  const width = orientation === 'Portrait' ?  595.28 : 841.89;
   return new Promise((resolve) => {
     const docDefinition = {
       content: [
         {
-          height: 792.00,
+          height,
           image,
-          width: 612.00,
+          width,
         },
       ],
       pageMargins: [0, 0, 0, 0],
-      pageSize: 'LETTER', // pageSize: { width: 612.00, height: 792.00},
+      pageSize: {
+        height,
+        width,
+      },
+      // pageSize: 'LETTER', // pageSize: { width: 612.00, height: 792.00},
     };
 
     const pdfDocGenerator = pdfMake.createPdf(docDefinition);
