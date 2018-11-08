@@ -1,8 +1,11 @@
 import aws from 'aws-sdk';
 import express from 'express';
 const router = express.Router();
+// @ts-ignore
+import imagemagick from 'imagemagick-native';
 import multer from 'multer';
 import pdfMake from 'pdfmake/build/pdfmake';
+// @ts-ignore
 import sharp from 'sharp';
 import util from 'util';
 
@@ -27,7 +30,7 @@ router.post('/process', upload.single('poster'), (req, res) => {
   });
   // create a pdf for our image and upload to S3 and return with response to be added to custom product field
   const pdfPromise: any = new Promise((resolve, reject) => {
-    createAndUploadPDF(req.body.poster, req.body.orientation).then((data) => {
+    createAndUploadPDF(req.body.poster, req.body.orientation, req.body.size).then((data) => {
       console.log('Processed img link arr: ', data);
 
       S3LinksArr.push(data);
@@ -91,39 +94,83 @@ function resizeAndUploadImage(file: string, sizes: Array<{ width: number }>, qua
 /////////////////// PDF Processing
 ///////////////////////////////////////////////////////
 
-function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape'): Promise <{ type: 'thumbnail' | 'pdf', S3Url: string }> {
-  const height = orientation === 'Portrait' ?  841.89 : 595.28;
-  const width = orientation === 'Portrait' ?  595.28 : 841.89;
+function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape', size: 'Small' | 'Medium' | 'Large'): Promise <{ type: 'thumbnail' | 'pdf', S3Url: string }> {
+  // sizing quantified in points which is 1 inch x 72
+  let short: number;
+  let long: number;
+  if (size === 'Small') {
+    short = 8 * 72;
+    long = 12 * 72;
+  } else if (size === 'Medium') {
+    short = 12 * 72;
+    long = 18 * 72;
+  } else {
+    short = 18 * 72;
+    long = 27 * 72;
+  }
+  const height = orientation === 'Portrait' ?  long : short;
+  const width = orientation === 'Portrait' ?  short : long;
   return new Promise((resolve) => {
-    const docDefinition = {
-      content: [
-        {
-          height,
-          image,
-          width,
-        },
-      ],
-      pageMargins: [0, 0, 0, 0],
-      pageSize: {
-        height,
-        width,
-      },
-      // pageSize: 'LETTER', // pageSize: { width: 612.00, height: 792.00},
-    };
+    // convertColorspace(image).then(
+    //   (buffer: any) => {
+        const docDefinition = {
+          content: [
+            {
+              height,
+              image,
+              width,
+            },
+          ],
+          pageMargins: [0, 0, 0, 0],
+          pageSize: {
+            height,
+            width,
+          },
+        };
 
-    const pdfDocGenerator = pdfMake.createPdf(docDefinition);
-    (pdfDocGenerator as any).getBase64((pdf: any) => {
-      // console.log('Is buffer: ', util.isBuffer(buffer));
-      // console.log(pdf);
-      const posterImg = Buffer.from(pdf, 'base64');
-      // might be nice for a more descriptive name eventually
-      const key = `poster-pdf-${Date.now()}.pdf`;
-      uploadToS3(posterImg, key, (err: Error, data: any) => {
-        if (err) {
-          console.error('S3 upload err: ', err);
-        }
-        resolve({ type: 'pdf', S3Url: data.Location });
-      });
+        const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+        (pdfDocGenerator as any).getBase64((pdf: any) => {
+          // might be nice for a more descriptive name eventually
+          const posterImg = Buffer.from(pdf, 'base64');
+          const key = `poster-pdf-${Date.now()}.pdf`;
+          uploadToS3(posterImg, key, (err: Error, data: any) => {
+            if (err) {
+              // console.error('S3 upload err: ', err);
+            }
+            resolve({ type: 'pdf', S3Url: data.Location });
+          });
+        });
+      // },
+    // );
+  });
+}
+
+///////////////////////////////////////////////////////
+/////////////////// Convert Colorspace
+///////////////////////////////////////////////////////
+function convertColorspace(image: string): Promise<Buffer> {
+  const posterImg = Buffer.from(image.split('data:image/png;base64,')[1], 'base64');
+
+  return new Promise((resolve, reject) => { // promise for the overall resize img function
+
+  //   sharp(posterImg)
+  //   .toColourspace('cmyk')
+  //   .withMetadata({
+  //     profile: './colorProfiles/CoatedGRACoL2006.icc',
+  //   })
+  //   .toBuffer()
+  //   .then(
+  //     (buffer) => resolve(buffer),
+  //   );
+  // });
+
+  // return new Promise((resolve, reject) => {
+    imagemagick.convert({
+      colorspace: 'CMYK',
+      srcData: posterImg,
+    }, (err: any, buffer: any) => {
+        if (err) reject(err);
+        resolve(buffer);
     });
   });
 }
