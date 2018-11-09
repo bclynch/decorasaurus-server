@@ -165,13 +165,19 @@ function convertColorspace(image: string): Promise<Buffer> {
   // });
 
   // return new Promise((resolve, reject) => {
-    imagemagick.convert({
-      colorspace: 'CMYK',
-      srcData: posterImg,
-    }, (err: any, buffer: any) => {
-        if (err) reject(err);
-        resolve(buffer);
-    });
+
+  // this code works. Need to convert to using buffers
+  // goes png to jpg fine too with simple write
+  // would need to identify actual profile from printer
+    // @ts-ignore
+    // import gm from 'gm';
+    // gm('imageTest/download.png')
+    // .profile('colorProfiles/WebCoatedSWOP2006Grade5.icc')
+    // .colorspace('CMYK')
+    // .write('imageTest/downloadOutput1.jpg', (err) => {
+    //   if (err) console.log(err);
+    //   if (!err) console.log('done');
+    // });
   });
 }
 
