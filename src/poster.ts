@@ -9,7 +9,7 @@ import pdfMake from 'pdfmake/build/pdfmake';
 import sharp from 'sharp';
 import util from 'util';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 25 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 25 * 1024 * 1024 * 1024 } });
 // Access key and secret id being pulled from env vars and in my drive as backup
 aws.config.update({ region: process.env.AWS_REGION });
 const bucketName = process.env.NODE_ENV === 'production' ? 'packonmyback-production' : 'packonmyback-dev';
