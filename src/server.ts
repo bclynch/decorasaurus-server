@@ -7,8 +7,8 @@ import fs from 'fs';
 import morgan from 'morgan';
 import moltinRouter from './moltin';
 import patentRouter from './patent';
-import posterizeRouter from './posterize';
 import posterRouter from './poster';
+import posterizeRouter from './posterize';
 import stripeRouter from './stripe';
 const app = express();
 const router = express.Router();
@@ -62,6 +62,11 @@ router.use('/poster', posterRouter);
 
 // api mount path
 app.use('/api', router);
+
+// import { turnOffServer, turnOnServer } from './fusion';
+// turnOnServer().then(
+//   (server) => turnOffServer(server.jobName),
+// );
 
 // Initialize the app.
 app.listen(app.get('port'), 'localhost', () => console.log(`You're a designer, Harry. I'm a what? Yes, a designer. Spinning up ${process.env.NODE_ENV === 'production' ? 'production' : 'dev'} on port`, app.get('port')) );
