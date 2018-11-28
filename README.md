@@ -8,6 +8,7 @@
 - Turn on colorspace conversion
 - Create dev / prod env with Moltin and S3 with decorasaurus email
 - Fusion / Floyd integration
+- Cloudflare integration
 
 ## Dev
 To develop, we run: 

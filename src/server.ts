@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import fs from 'fs';
 import morgan from 'morgan';
+import { init } from './fusion';
 import moltinRouter from './moltin';
 import patentRouter from './patent';
 import posterRouter from './poster';
@@ -12,9 +13,9 @@ import posterizeRouter from './posterize';
 import stripeRouter from './stripe';
 const app = express();
 const router = express.Router();
-import { postgraphile } from 'postgraphile';
-// @ts-ignore
-import PostGraphileConnectionFilterPlugin from 'postgraphile-plugin-connection-filter';
+// import { postgraphile } from 'postgraphile';
+// // @ts-ignore
+// import PostGraphileConnectionFilterPlugin from 'postgraphile-plugin-connection-filter';
 dotenv.config();
 
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -26,21 +27,21 @@ app.use(cors()); // CORS (Cross-Origin Resource Sharing) headers to support Cros
 /**
  * PostgraphQL
  */
-const pgConnection = {
-  database: 'edm',
-  host: 'localhost',
-  password: process.env.DATABASE_PASSWORD,
-  port: 5432,
-  user: process.env.DATABASE_USER,
-};
-const postgraphqlConfig = {
-  appendPlugins: [PostGraphileConnectionFilterPlugin],
-  graphiql: true,
-  graphiqlRoute: '/api/graphiql',
-  graphqlRoute: '/api/graphql',
-  jwtPgTypeIdentifier: 'edm.jwt_token',
-  jwtSecret: process.env.JWT_SECRET,
-};
+// const pgConnection = {
+//   database: 'edm',
+//   host: 'localhost',
+//   password: process.env.DATABASE_PASSWORD,
+//   port: 5432,
+//   user: process.env.DATABASE_USER,
+// };
+// const postgraphqlConfig = {
+//   appendPlugins: [PostGraphileConnectionFilterPlugin],
+//   graphiql: true,
+//   graphiqlRoute: '/api/graphiql',
+//   graphqlRoute: '/api/graphql',
+//   jwtPgTypeIdentifier: 'edm.jwt_token',
+//   jwtSecret: process.env.JWT_SECRET,
+// };
 
 // choose correct postgraphile depending on env
 // if (process.env.NODE_ENV === 'production') {
@@ -48,6 +49,9 @@ const postgraphqlConfig = {
 // } else {
 //   app.use(postgraphile(pgConnection, ['poster','poster_private'], postgraphqlConfig));
 // }
+
+// set up cron job for processing fusion images
+// init();
 
 // set up the logger
 const accessLogStream = fs.createWriteStream(__dirname + '/access.log', {flags: 'a'});
@@ -62,11 +66,6 @@ router.use('/poster', posterRouter);
 
 // api mount path
 app.use('/api', router);
-
-// import { turnOffServer, turnOnServer } from './fusion';
-// turnOnServer().then(
-//   (server) => turnOffServer(server.jobName),
-// );
 
 // Initialize the app.
 app.listen(app.get('port'), 'localhost', () => console.log(`You're a designer, Harry. I'm a what? Yes, a designer. Spinning up ${process.env.NODE_ENV === 'production' ? 'production' : 'dev'} on port`, app.get('port')) );

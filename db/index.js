@@ -1,6 +1,6 @@
 const pg = require('pg');
 const PGUSER = 'poster_admin';
-const PGDATABASE = 'edm';
+const PGDATABASE = 'decorasaurus';
 require('dotenv').config();
 
 const localConfig = {
