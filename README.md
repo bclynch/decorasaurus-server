@@ -1,14 +1,15 @@
 # Decorasaurus
 
 ## Todos
-- Make typescript server - check
+- ~~Make typescript server~~
 - Finish up gzip / cache settings
 - Upload node server and test prod works 
   - Need to setup env vars and probably imagemagick
 - Turn on colorspace conversion
-- Create dev / prod env with Moltin and S3 with decorasaurus email
+- ~~Create dev / prod env with Moltin and S3 with decorasaurus email~~
 - Fusion / Floyd integration
 - Cloudflare integration
+- Setup postmark email
 
 ## Dev
 To develop, we run: 
@@ -18,6 +19,9 @@ To develop, we run:
 and in a separate terminal we run:
 
 `npm run watch-node`
+
+## Explore API
+Use http://localhost:5000/api/graphiql to enter the graphiql editor
 
 ## Floyd Work
 - Guide https://docs.floydhub.com/examples/style_transfer/

@@ -13,9 +13,9 @@ import posterizeRouter from './posterize';
 import stripeRouter from './stripe';
 const app = express();
 const router = express.Router();
-// import { postgraphile } from 'postgraphile';
-// // @ts-ignore
-// import PostGraphileConnectionFilterPlugin from 'postgraphile-plugin-connection-filter';
+import { postgraphile } from 'postgraphile';
+// @ts-ignore
+import PostGraphileConnectionFilterPlugin from 'postgraphile-plugin-connection-filter';
 dotenv.config();
 
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -27,28 +27,28 @@ app.use(cors()); // CORS (Cross-Origin Resource Sharing) headers to support Cros
 /**
  * PostgraphQL
  */
-// const pgConnection = {
-//   database: 'edm',
-//   host: 'localhost',
-//   password: process.env.DATABASE_PASSWORD,
-//   port: 5432,
-//   user: process.env.DATABASE_USER,
-// };
-// const postgraphqlConfig = {
-//   appendPlugins: [PostGraphileConnectionFilterPlugin],
-//   graphiql: true,
-//   graphiqlRoute: '/api/graphiql',
-//   graphqlRoute: '/api/graphql',
-//   jwtPgTypeIdentifier: 'edm.jwt_token',
-//   jwtSecret: process.env.JWT_SECRET,
-// };
+const pgConnection = {
+  database: 'decorasaurus',
+  host: 'localhost',
+  password: process.env.DATABASE_PASSWORD,
+  port: 5432,
+  user: process.env.DATABASE_USER,
+};
+const postgraphqlConfig = {
+  appendPlugins: [PostGraphileConnectionFilterPlugin],
+  graphiql: true,
+  graphiqlRoute: '/api/graphiql',
+  graphqlRoute: '/api/graphql',
+  jwtPgTypeIdentifier: 'decorasaurus.jwt_token',
+  jwtSecret: process.env.JWT_SECRET,
+};
 
 // choose correct postgraphile depending on env
-// if (process.env.NODE_ENV === 'production') {
-//   app.use(postgraphile(`postgresql://${process.env.DATABASE_USER}:${process.env.DATABASE_PASSWORD}@${process.env.DATABASE_ADDRESS}:5432/${process.env.DATABASE_NAME}`, ['edm','edm_private'], postgraphqlConfig));
-// } else {
-//   app.use(postgraphile(pgConnection, ['poster','poster_private'], postgraphqlConfig));
-// }
+if (process.env.NODE_ENV === 'production') {
+  app.use(postgraphile(`postgresql://${process.env.DATABASE_USER}:${process.env.DATABASE_PASSWORD}@${process.env.DATABASE_ADDRESS}:5432/${process.env.DATABASE_NAME}`, ['decorasaurus', 'decorasaurus_private'], postgraphqlConfig));
+} else {
+  app.use(postgraphile(pgConnection, ['decorasaurus', 'decorasaurus_private'], postgraphqlConfig));
+}
 
 // set up cron job for processing fusion images
 // init();

@@ -6,6 +6,8 @@ DROP ROLE IF EXISTS decorasaurus_admin, decorasaurus_anonymous, decorasaurus_cus
 CREATE SCHEMA decorasaurus;
 CREATE SCHEMA decorasaurus_private;
 
+create extension if not exists "uuid-ossp";
+
 alter default privileges REVOKE EXECUTE ON functions FROM public;
 
 -- *******************************************************************
@@ -32,7 +34,7 @@ CREATE EXTENSION IF NOT EXISTS hstore;
 CREATE TABLE decorasaurus.logged_actions (
     event_id bigSERIAL PRIMARY KEY,
     table_name TEXT NOT NULL,
-    customer_id INTEGER,
+    customer_id UUID,
     session_user_name TEXT,
     action_tstamp_tx TIMESTAMP WITH TIME ZONE NOT NULL,
     client_addr inet,
@@ -70,7 +72,7 @@ BEGIN
     audit_row = ROW(
         nextval('decorasaurus.logged_actions_event_id_seq'), -- event_id
         TG_TABLE_NAME::TEXT,                          -- table_name
-        current_setting('jwt.claims.customer_id', true)::INTEGER, -- customer_id
+        current_setting('jwt.claims.customer_id', true)::UUID, -- customer_id
         session_user::TEXT,                           -- session_user_name
         current_TIMESTAMP,                            -- action_tstamp_tx
         inet_client_addr(),                           -- client_addr
@@ -201,7 +203,9 @@ $body$;
 
 -- Maybe create a column for how often they want to receive email notifications
 CREATE TABLE decorasaurus.customer (
-  id                   SERIAL PRIMARY KEY,
+  id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
+  first_name           TEXT NOT NULL check (char_length(first_name) < 256),
+  last_name            TEXT NOT NULL check (char_length(last_name) < 256),
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -215,6 +219,8 @@ FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
 COMMENT ON TABLE decorasaurus.customer IS 'Table with decorasaurus users';
 COMMENT ON COLUMN decorasaurus.customer.id IS 'Primary id for customer';
+COMMENT ON COLUMN decorasaurus.customer.first_name IS 'First name of customer';
+COMMENT ON COLUMN decorasaurus.customer.last_name IS 'Last name of customer';
 COMMENT ON COLUMN decorasaurus.customer.created_at IS 'When customer created';
 COMMENT ON COLUMN decorasaurus.customer.updated_at IS 'When customer last updated';
 
@@ -247,7 +253,7 @@ COMMENT ON COLUMN decorasaurus.product.status IS 'Status for the product. Either
 COMMENT ON COLUMN decorasaurus.product.created_at IS 'When product created';
 COMMENT ON COLUMN decorasaurus.product.updated_at IS 'When product last updated';
 
-ALTER TABLE decorasaurus.product ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE decorasaurus.product ENABLE ROW LEVEL SECURITY;
 
 -- Limiting choices for status field on product
 CREATE TYPE decorasaurus.currency_type as enum (
@@ -279,10 +285,11 @@ COMMENT ON COLUMN decorasaurus.product_price.currency IS '3 Letter ISO for curre
 COMMENT ON COLUMN decorasaurus.product_price.created_at IS 'When product_price created';
 COMMENT ON COLUMN decorasaurus.product_price.updated_at IS 'When product_price last updated';
 
-ALTER TABLE decorasaurus.product_price ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE decorasaurus.product_price ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE decorasaurus.cart (
-  id                   SERIAL PRIMARY KEY,
+  id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
+  customer_id          UUID REFERENCES decorasaurus.customer(id) ON DELETE CASCADE,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -293,13 +300,14 @@ FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
 COMMENT ON TABLE decorasaurus.cart IS 'Table with cart information';
 COMMENT ON COLUMN decorasaurus.cart.id IS 'Primary id for cart';
+COMMENT ON COLUMN decorasaurus.cart.customer_id IS 'Reference to customer related to cart if logged in';
 COMMENT ON COLUMN decorasaurus.cart.created_at IS 'When cart created';
 COMMENT ON COLUMN decorasaurus.cart.updated_at IS 'When cart last updated';
 
-ALTER TABLE decorasaurus.cart ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE decorasaurus.cart ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE decorasaurus.cart_item (
-  id                   SERIAL PRIMARY KEY,
+  id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
   quantity             INTEGER NOT NULL CHECK (quantity > 0),
   created_at           BIGINT default (extract(epoch from now()) * 1000),
@@ -317,7 +325,7 @@ COMMENT ON COLUMN decorasaurus.cart_item.quantity IS 'Quantity of cart items';
 COMMENT ON COLUMN decorasaurus.cart_item.created_at IS 'When cart item created';
 COMMENT ON COLUMN decorasaurus.cart_item.updated_at IS 'When cart item last updated';
 
-ALTER TABLE decorasaurus.cart_item ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE decorasaurus.cart_item ENABLE ROW LEVEL SECURITY;
 
 -- Limiting choices for type field on address
 CREATE TYPE decorasaurus.address_type as enum (
@@ -326,8 +334,10 @@ CREATE TYPE decorasaurus.address_type as enum (
 );
 
 CREATE TABLE decorasaurus.address (
-  id                   SERIAL PRIMARY KEY,
+  id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
+  customer_id          UUID NOT NULL REFERENCES decorasaurus.customer(id) ON DELETE CASCADE,
   type                 decorasaurus.address_type not null,
+  name                 TEXT,
   first_name           TEXT not null,
   last_name            TEXT not null,
   company              TEXT,
@@ -347,6 +357,7 @@ FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
 COMMENT ON TABLE decorasaurus.address IS 'Table with address information';
 COMMENT ON COLUMN decorasaurus.address.id IS 'Primary id for address';
+COMMENT ON COLUMN decorasaurus.address.customer_id IS 'Reference to customer connected to address';
 COMMENT ON COLUMN decorasaurus.address.type IS 'Type of address';
 COMMENT ON COLUMN decorasaurus.address.name IS 'Field user can populate with their own name for the address';
 COMMENT ON COLUMN decorasaurus.address.first_name IS 'First name of recipient';
@@ -387,9 +398,9 @@ CREATE TABLE decorasaurus.order (
   status               decorasaurus.order_status not null,
   payment              decorasaurus.order_payment not null,
   shipping             decorasaurus.order_shipping not null,
-  customer_id          INTEGER NOT NULL REFERENCES decorasaurus.customer(id) ON DELETE CASCADE,
-  billing_address_id   INTEGER NOT NULL REFERENCES decorasaurus.address(id) ON DELETE CASCADE,
-  shipping_address_id  INTEGER NOT NULL REFERENCES decorasaurus.address(id) ON DELETE CASCADE,
+  customer_id          UUID NOT NULL REFERENCES decorasaurus.customer(id) ON DELETE CASCADE,
+  billing_address_id   UUID NOT NULL REFERENCES decorasaurus.address(id),
+  shipping_address_id  UUID NOT NULL REFERENCES decorasaurus.address(id),
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -411,24 +422,24 @@ COMMENT ON COLUMN decorasaurus.order.updated_at IS 'When order last updated';
 
 ALTER TABLE decorasaurus.order ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE decorasaurus.order_items (
-  id                   SERIAL PRIMARY KEY,
+CREATE TABLE decorasaurus.order_item (
+  id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
 
-CREATE TRIGGER order_items_INSERT_UPDATE_DELETE
-AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.order_items
+CREATE TRIGGER order_item_INSERT_UPDATE_DELETE
+AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.order_item
 FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
-COMMENT ON TABLE decorasaurus.order_items IS 'Table with order item information';
-COMMENT ON COLUMN decorasaurus.order_items.id IS 'Primary id for order item';
-COMMENT ON COLUMN decorasaurus.order_items.product_sku IS 'Reference to product sku';
-COMMENT ON COLUMN decorasaurus.order_items.created_at IS 'When order created';
-COMMENT ON COLUMN decorasaurus.order_items.updated_at IS 'When order last updated';
+COMMENT ON TABLE decorasaurus.order_item IS 'Table with order item information';
+COMMENT ON COLUMN decorasaurus.order_item.id IS 'Primary id for order item';
+COMMENT ON COLUMN decorasaurus.order_item.product_sku IS 'Reference to product sku';
+COMMENT ON COLUMN decorasaurus.order_item.created_at IS 'When order created';
+COMMENT ON COLUMN decorasaurus.order_item.updated_at IS 'When order last updated';
 
-ALTER TABLE decorasaurus.order_items ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE decorasaurus.order_item ENABLE ROW LEVEL SECURITY;
 
 -- Limiting choices for type field on links
 CREATE TYPE decorasaurus.link_type as enum (
@@ -439,8 +450,8 @@ CREATE TYPE decorasaurus.link_type as enum (
 
 CREATE TABLE decorasaurus.product_links (
   id                   SERIAL PRIMARY KEY,
-  cart_item_id         INTEGER NOT NULL REFERENCES decorasaurus.cart_item(id),
-  order_item_id        INTEGER NOT NULL REFERENCES decorasaurus.order_item(id) ON DELETE CASCADE,
+  cart_item_id         UUID NOT NULL REFERENCES decorasaurus.cart_item(id),
+  order_item_id        UUID NOT NULL REFERENCES decorasaurus.order_item(id) ON DELETE CASCADE,
   type                 decorasaurus.link_type not null,
   url                  TEXT not null,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
@@ -460,7 +471,7 @@ COMMENT ON COLUMN decorasaurus.product_links.url IS 'URL of the link';
 COMMENT ON COLUMN decorasaurus.product_links.created_at IS 'When product link created';
 COMMENT ON COLUMN decorasaurus.product_links.updated_at IS 'When product link last updated';
 
-ALTER TABLE decorasaurus.product_links ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE decorasaurus.product_links ENABLE ROW LEVEL SECURITY;
 
 -- *******************************************************************
 -- *********************** Function Queries **************************
@@ -512,8 +523,8 @@ create trigger order_updated_at before update
   for each row
   execute procedure decorasaurus_private.set_updated_at();
 
-create trigger order_items_updated_at before update
-  on decorasaurus.order_items
+create trigger order_item_updated_at before update
+  on decorasaurus.order_item
   for each row
   execute procedure decorasaurus_private.set_updated_at();
 
@@ -527,7 +538,7 @@ create trigger product_links_updated_at before update
 -- *******************************************************************
 
 CREATE TABLE decorasaurus_private.user_customer (
-  customer_id         INTEGER primary key references decorasaurus.customer(id) on delete cascade,
+  customer_id         UUID primary key references decorasaurus.customer(id) on delete cascade,
   email               TEXT NOT NULL unique check (email ~* '^.+@.+\..+$'),
   password_hash       TEXT NOT NULL
 );
@@ -544,12 +555,17 @@ COMMENT ON COLUMN decorasaurus_private.user_customer.password_hash IS 'An opaque
 CREATE extension IF NOT EXISTS "pgcrypto";
 
 CREATE FUNCTION decorasaurus.register_user_customer (
+  first_name          TEXT,
+  last_name           TEXT,
   email               TEXT,
   password            TEXT
 ) returns decorasaurus.customer as $$
 declare
   customer decorasaurus.customer;
 begin
+  INSERT into decorasaurus.customer (first_name, last_name) values
+    (first_name, last_name)
+    returning * into customer;
 
   INSERT INTO decorasaurus_private.user_customer (customer_id, email, password_hash) values
     (customer.id, email, crypt(password, gen_salt('bf')));
@@ -558,10 +574,10 @@ begin
 end;
 $$ language plpgsql strict security definer;
 
-COMMENT ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT) IS 'Registers and creates a user customer for decorasaurus.';
+COMMENT ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) IS 'Registers and creates a user customer for decorasaurus.';
 
 CREATE TABLE decorasaurus_private.admin_account (
-  account_id          INTEGER primary key references decorasaurus.account(id) on delete cascade,
+  account_id          UUID primary key references decorasaurus.customer(id) on delete cascade,
   email               TEXT NOT NULL unique check (email ~* '^.+@.+\..+$'),
   password_hash       TEXT NOT NULL
 );
@@ -580,9 +596,9 @@ create extension IF NOT EXISTS "pgcrypto";
 CREATE FUNCTION decorasaurus.register_admin_account (
   email               TEXT,
   password            TEXT
-) RETURNS decorasaurus.account AS $$
+) RETURNS decorasaurus.customer AS $$
 declare
-  account decorasaurus.account;
+  account decorasaurus.customer;
 begin
 
   INSERT INTO decorasaurus_private.admin_account (account_id, email, password_hash) VALUES
@@ -595,7 +611,7 @@ $$ language plpgsql strict security definer;
 COMMENT ON FUNCTION decorasaurus.register_admin_account(TEXT, TEXT) IS 'Registers and creates an admin ccount for decorasaurus.';
 
 CREATE FUNCTION decorasaurus.update_password(
-  user_id INTEGER,
+  customer_id UUID,
   password TEXT,
   new_password TEXT
 ) returns boolean as $$
@@ -615,7 +631,7 @@ begin
 end;
 $$ language plpgsql strict security definer;
 
-COMMENT ON FUNCTION decorasaurus.update_password(INTEGER, TEXT, TEXT) IS 'Updates the password of a user.';
+COMMENT ON FUNCTION decorasaurus.update_password(UUID, TEXT, TEXT) IS 'Updates the password of a user.';
 
 CREATE FUNCTION decorasaurus.reset_password(
   email TEXT
@@ -657,7 +673,7 @@ GRANT decorasaurus_customer TO decorasaurus_anonymous;
 
 CREATE TYPE decorasaurus.jwt_token as (
   ROLE TEXT,
-  customer_id INTEGER,
+  customer_id UUID,
   exp INTEGER
 );
 
@@ -708,7 +724,7 @@ COMMENT ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) IS 'Crea
 CREATE FUNCTION decorasaurus.current_customer() returns decorasaurus.customer as $$
   select *
   from decorasaurus.customer
-  where decorasaurus.customer.id = current_setting('jwt.claims.customer_id', true)::INTEGER
+  where decorasaurus.customer.id = current_setting('jwt.claims.customer_id', true)::UUID
 $$ language sql stable;
 
 COMMENT ON FUNCTION decorasaurus.current_customer() IS 'Gets the customer that was identified by our JWT.';
@@ -720,9 +736,9 @@ COMMENT ON FUNCTION decorasaurus.current_customer() IS 'Gets the customer that w
 GRANT usage on schema decorasaurus to decorasaurus_anonymous, decorasaurus_customer;
 GRANT usage on all sequences in schema decorasaurus to decorasaurus_customer;
 
-GRANT execute on function decorasaurus.register_user_customer(TEXT, TEXT, TEXT) to decorasaurus_anonymous;
-GRANT execute on function decorasaurus.register_admin_account(TEXT, TEXT, TEXT) to decorasaurus_anonymous;
-GRANT execute on function decorasaurus.update_password(INTEGER, TEXT, TEXT) to decorasaurus_customer;
+GRANT execute on function decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) to decorasaurus_anonymous;
+GRANT execute on function decorasaurus.register_admin_account(TEXT, TEXT) to decorasaurus_anonymous;
+GRANT execute on function decorasaurus.update_password(UUID, TEXT, TEXT) to decorasaurus_customer;
 GRANT execute on function decorasaurus.reset_password(TEXT) to decorasaurus_anonymous, decorasaurus_customer;
 GRANT execute on function decorasaurus.authenticate_user_customer(TEXT, TEXT) to decorasaurus_anonymous;
 GRANT execute on function decorasaurus.authenticate_admin_account(TEXT, TEXT) to decorasaurus_anonymous;
@@ -737,8 +753,30 @@ CREATE POLICY select_customer ON decorasaurus.customer for SELECT TO decorasauru
 CREATE POLICY insert_customer ON decorasaurus.customer for INSERT TO decorasaurus_anonymous
   WITH CHECK (true);
 CREATE POLICY update_customer ON decorasaurus.customer for UPDATE TO decorasaurus_customer
-  USING (id = current_setting('jwt.claims.customer_id')::INTEGER);
+  USING (id = current_setting('jwt.claims.customer_id')::UUID);
 CREATE POLICY delete_customer ON decorasaurus.customer for DELETE TO decorasaurus_customer
-  USING (id = current_setting('jwt.claims.customer_id')::INTEGER);
+  USING (id = current_setting('jwt.claims.customer_id')::UUID); 
+
+-- Address policy
+GRANT ALL ON TABLE decorasaurus.address TO decorasaurus_customer;
+CREATE POLICY select_address ON decorasaurus.address for SELECT TO decorasaurus_customer
+  USING (true);
+CREATE POLICY insert_address ON decorasaurus.address for INSERT TO decorasaurus_customer
+  WITH CHECK (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY update_address ON decorasaurus.address for UPDATE TO decorasaurus_customer
+  USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY delete_address ON decorasaurus.address for DELETE TO decorasaurus_customer
+  USING (customer_id = current_setting('jwt.claims.customer_id')::UUID); 
+
+-- Order policy
+GRANT ALL ON TABLE decorasaurus.order TO decorasaurus_customer;
+CREATE POLICY select_order ON decorasaurus.order for SELECT TO decorasaurus_customer
+  USING (true);
+CREATE POLICY insert_order ON decorasaurus.order for INSERT TO decorasaurus_customer
+  WITH CHECK (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY update_order ON decorasaurus.order for UPDATE TO decorasaurus_customer
+  USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY delete_order ON decorasaurus.address for DELETE TO decorasaurus_customer
+  USING (customer_id = current_setting('jwt.claims.customer_id')::UUID); 
 
 commit;

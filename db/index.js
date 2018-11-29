@@ -1,5 +1,5 @@
 const pg = require('pg');
-const PGUSER = 'poster_admin';
+const PGUSER = 'decorasaurus_admin';
 const PGDATABASE = 'decorasaurus';
 require('dotenv').config();
 
