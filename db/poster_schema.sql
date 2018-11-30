@@ -6,9 +6,9 @@ DROP ROLE IF EXISTS decorasaurus_admin, decorasaurus_anonymous, decorasaurus_cus
 CREATE SCHEMA decorasaurus;
 CREATE SCHEMA decorasaurus_private;
 
-create extension if not exists "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-alter default privileges REVOKE EXECUTE ON functions FROM public;
+ALTER default privileges REVOKE EXECUTE ON functions FROM public;
 
 -- *******************************************************************
 -- *********************** Audit Trigger *****************************
@@ -244,6 +244,12 @@ CREATE TRIGGER product_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.product
 FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
+INSERT INTO decorasaurus.product (sku, name, slug, description) values
+  ('fusion', 'Fusion Poster', 'fusion-poster', null),
+  ('patent', 'Patent Poster', 'patent-poster', null),
+  ('trace', 'Trace Poster', 'trace-poster', null),
+  ('map', 'Map Poster', 'map-poster', null);
+
 COMMENT ON TABLE decorasaurus.product IS 'Table with decorasaurus products';
 COMMENT ON COLUMN decorasaurus.product.sku IS 'Primary id and sku for the product';
 COMMENT ON COLUMN decorasaurus.product.name IS 'Name of the product';
@@ -277,6 +283,17 @@ CREATE TRIGGER product_price_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.product_price
 FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
+INSERT INTO decorasaurus.product_price (product_sku, amount, currency) values
+  ('fusion', 7500, 'USD'),
+  ('fusion', 6000, 'EUR'),
+  ('patent', 6500, 'USD'),
+  ('patent', 5500, 'EUR'),
+  ('trace', 6500, 'USD'),
+  ('trace', 5500, 'EUR'),
+  ('map', 7000, 'USD'),
+  ('map', 5800, 'EUR');
+
+
 COMMENT ON TABLE decorasaurus.product_price IS 'Table with product price information';
 COMMENT ON COLUMN decorasaurus.product_price.id IS 'Primary id for product price';
 COMMENT ON COLUMN decorasaurus.product_price.product_sku IS 'Foreign key for product';
@@ -308,6 +325,7 @@ COMMENT ON COLUMN decorasaurus.cart.updated_at IS 'When cart last updated';
 
 CREATE TABLE decorasaurus.cart_item (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
+  cart_id              UUID NOT NULL REFERENCES decorasaurus.cart(id) ON DELETE CASCADE,
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
   quantity             INTEGER NOT NULL CHECK (quantity > 0),
   created_at           BIGINT default (extract(epoch from now()) * 1000),
@@ -320,6 +338,7 @@ FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
 COMMENT ON TABLE decorasaurus.cart_item IS 'Table with cart item information';
 COMMENT ON COLUMN decorasaurus.cart_item.id IS 'Primary id for cart item';
+COMMENT ON COLUMN decorasaurus.cart_item.cart_id IS 'Reference to cart item is related to';
 COMMENT ON COLUMN decorasaurus.cart_item.product_sku IS 'Reference to product';
 COMMENT ON COLUMN decorasaurus.cart_item.quantity IS 'Quantity of cart items';
 COMMENT ON COLUMN decorasaurus.cart_item.created_at IS 'When cart item created';
@@ -394,7 +413,7 @@ CREATE TYPE decorasaurus.order_shipping as enum (
 );
 
 CREATE TABLE decorasaurus.order (
-  id                   SERIAL PRIMARY KEY,
+  id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
   status               decorasaurus.order_status not null,
   payment              decorasaurus.order_payment not null,
   shipping             decorasaurus.order_shipping not null,
@@ -424,6 +443,7 @@ ALTER TABLE decorasaurus.order ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE decorasaurus.order_item (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
+  order_id             UUID NOT NULL REFERENCES decorasaurus.order(id) ON DELETE CASCADE,
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
@@ -435,6 +455,7 @@ FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
 COMMENT ON TABLE decorasaurus.order_item IS 'Table with order item information';
 COMMENT ON COLUMN decorasaurus.order_item.id IS 'Primary id for order item';
+COMMENT ON COLUMN decorasaurus.order_item.order_id IS 'Reference to order id item related to';
 COMMENT ON COLUMN decorasaurus.order_item.product_sku IS 'Reference to product sku';
 COMMENT ON COLUMN decorasaurus.order_item.created_at IS 'When order created';
 COMMENT ON COLUMN decorasaurus.order_item.updated_at IS 'When order last updated';
@@ -450,8 +471,8 @@ CREATE TYPE decorasaurus.link_type as enum (
 
 CREATE TABLE decorasaurus.product_links (
   id                   SERIAL PRIMARY KEY,
-  cart_item_id         UUID NOT NULL REFERENCES decorasaurus.cart_item(id),
-  order_item_id        UUID NOT NULL REFERENCES decorasaurus.order_item(id) ON DELETE CASCADE,
+  cart_item_id         UUID REFERENCES decorasaurus.cart_item(id),
+  order_item_id        UUID REFERENCES decorasaurus.order_item(id) ON DELETE CASCADE,
   type                 decorasaurus.link_type not null,
   url                  TEXT not null,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
@@ -733,16 +754,17 @@ COMMENT ON FUNCTION decorasaurus.current_customer() IS 'Gets the customer that w
 -- ************************* Security *********************************
 -- *******************************************************************
 
-GRANT usage on schema decorasaurus to decorasaurus_anonymous, decorasaurus_customer;
-GRANT usage on all sequences in schema decorasaurus to decorasaurus_customer;
+GRANT USAGE ON SCHEMA decorasaurus TO decorasaurus_anonymous, decorasaurus_customer;
+GRANT USAGE ON ALL sequences IN schema decorasaurus TO decorasaurus_customer;
 
-GRANT execute on function decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) to decorasaurus_anonymous;
-GRANT execute on function decorasaurus.register_admin_account(TEXT, TEXT) to decorasaurus_anonymous;
-GRANT execute on function decorasaurus.update_password(UUID, TEXT, TEXT) to decorasaurus_customer;
-GRANT execute on function decorasaurus.reset_password(TEXT) to decorasaurus_anonymous, decorasaurus_customer;
-GRANT execute on function decorasaurus.authenticate_user_customer(TEXT, TEXT) to decorasaurus_anonymous;
-GRANT execute on function decorasaurus.authenticate_admin_account(TEXT, TEXT) to decorasaurus_anonymous;
-GRANT execute on function decorasaurus.current_customer() to PUBLIC;
+GRANT EXECUTE ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.register_admin_account(TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.update_password(UUID, TEXT, TEXT) TO decorasaurus_customer;
+GRANT EXECUTE ON FUNCTION decorasaurus.reset_password(TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
+GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_user_customer(TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.current_customer() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION uuid_generate_v1mc() TO PUBLIC;
 
 -- ///////////////// RLS Policies ////////////////////////////////
 
