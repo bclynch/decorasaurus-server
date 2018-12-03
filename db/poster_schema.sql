@@ -325,7 +325,7 @@ COMMENT ON COLUMN decorasaurus.cart.updated_at IS 'When cart last updated';
 
 CREATE TABLE decorasaurus.cart_item (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
-  cart_id              UUID NOT NULL REFERENCES decorasaurus.cart(id) ON DELETE CASCADE,
+  cart_id              UUID REFERENCES decorasaurus.cart(id) ON DELETE CASCADE, -- can set to null as a way to remove from cart without removing the cart item record
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
   quantity             INTEGER NOT NULL CHECK (quantity > 0),
   created_at           BIGINT default (extract(epoch from now()) * 1000),
@@ -573,6 +573,8 @@ COMMENT ON COLUMN decorasaurus_private.user_customer.customer_id IS 'The id of t
 COMMENT ON COLUMN decorasaurus_private.user_customer.email IS 'The email address of the customer.';
 COMMENT ON COLUMN decorasaurus_private.user_customer.password_hash IS 'An opaque hash of the customer’s password.';
 
+ALTER TABLE decorasaurus_private.user_customer ENABLE ROW LEVEL SECURITY;
+
 CREATE extension IF NOT EXISTS "pgcrypto";
 
 CREATE FUNCTION decorasaurus.register_user_customer (
@@ -742,10 +744,26 @@ $$ language plpgsql strict security definer;
 
 COMMENT ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) IS 'Creates a JWT token that will securely identify an admin account and give them certain permissions.';
 
-CREATE FUNCTION decorasaurus.current_customer() returns decorasaurus.customer as $$
-  select *
-  from decorasaurus.customer
-  where decorasaurus.customer.id = current_setting('jwt.claims.customer_id', true)::UUID
+DROP TYPE IF EXISTS zipzap;
+CREATE TYPE zipzap AS (
+  first_name TEXT,
+  last_name TEXT,
+  id UUID,
+  email TEXT
+);
+
+CREATE FUNCTION decorasaurus.current_customer() 
+  RETURNS zipzap 
+  AS $$
+  SELECT
+    decorasaurus.customer.first_name,
+    decorasaurus.customer.last_name,
+    decorasaurus.customer.id,
+    decorasaurus_private.user_customer.email
+  FROM decorasaurus.customer
+	INNER JOIN decorasaurus_private.user_customer
+	ON decorasaurus.customer.id = decorasaurus_private.user_customer.customer_id
+  WHERE decorasaurus.customer.id = current_setting('jwt.claims.customer_id', true)::UUID
 $$ language sql stable;
 
 COMMENT ON FUNCTION decorasaurus.current_customer() IS 'Gets the customer that was identified by our JWT.';
@@ -757,27 +775,33 @@ COMMENT ON FUNCTION decorasaurus.current_customer() IS 'Gets the customer that w
 GRANT USAGE ON SCHEMA decorasaurus TO decorasaurus_anonymous, decorasaurus_customer;
 GRANT USAGE ON ALL sequences IN schema decorasaurus TO decorasaurus_customer;
 
-GRANT EXECUTE ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
 GRANT EXECUTE ON FUNCTION decorasaurus.register_admin_account(TEXT, TEXT) TO decorasaurus_anonymous;
 GRANT EXECUTE ON FUNCTION decorasaurus.update_password(UUID, TEXT, TEXT) TO decorasaurus_customer;
 GRANT EXECUTE ON FUNCTION decorasaurus.reset_password(TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
-GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_user_customer(TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_user_customer(TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
 GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) TO decorasaurus_anonymous;
 GRANT EXECUTE ON FUNCTION decorasaurus.current_customer() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION uuid_generate_v1mc() TO PUBLIC;
 
 -- ///////////////// RLS Policies ////////////////////////////////
 
+-- Private policy. Want read only by logged in user of own account email
+GRANT USAGE ON SCHEMA decorasaurus_private TO decorasaurus_customer;
+GRANT SELECT(customer_id, email) ON TABLE decorasaurus_private.user_customer TO decorasaurus_customer;
+CREATE POLICY select_private_customer ON decorasaurus_private.user_customer for SELECT TO decorasaurus_customer
+  USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+
 -- Account policy
 GRANT ALL ON TABLE decorasaurus.customer TO decorasaurus_customer, decorasaurus_anonymous;
-CREATE POLICY select_customer ON decorasaurus.customer for SELECT TO decorasaurus_customer, decorasaurus_anonymous
-  USING (true);
-CREATE POLICY insert_customer ON decorasaurus.customer for INSERT TO decorasaurus_anonymous
+CREATE POLICY select_customer ON decorasaurus.customer for SELECT TO decorasaurus_customer
+  USING (id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY insert_customer ON decorasaurus.customer for INSERT TO decorasaurus_anonymous, decorasaurus_customer
   WITH CHECK (true);
 CREATE POLICY update_customer ON decorasaurus.customer for UPDATE TO decorasaurus_customer
   USING (id = current_setting('jwt.claims.customer_id')::UUID);
 CREATE POLICY delete_customer ON decorasaurus.customer for DELETE TO decorasaurus_customer
-  USING (id = current_setting('jwt.claims.customer_id')::UUID); 
+  USING (id = current_setting('jwt.claims.customer_id')::UUID);
 
 -- Address policy
 GRANT ALL ON TABLE decorasaurus.address TO decorasaurus_customer;
@@ -798,7 +822,62 @@ CREATE POLICY insert_order ON decorasaurus.order for INSERT TO decorasaurus_cust
   WITH CHECK (customer_id = current_setting('jwt.claims.customer_id')::UUID);
 CREATE POLICY update_order ON decorasaurus.order for UPDATE TO decorasaurus_customer
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
-CREATE POLICY delete_order ON decorasaurus.address for DELETE TO decorasaurus_customer
+CREATE POLICY delete_order ON decorasaurus.order for DELETE TO decorasaurus_customer
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID); 
+
+-- Cart policy
+GRANT ALL ON TABLE decorasaurus.cart TO decorasaurus_customer, decorasaurus_anonymous;
+CREATE POLICY select_cart ON decorasaurus.cart for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY insert_cart ON decorasaurus.cart for INSERT TO decorasaurus_customer, decorasaurus_anonymous
+  WITH CHECK (true);
+CREATE POLICY update_cart ON decorasaurus.cart for UPDATE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY delete_cart ON decorasaurus.cart for DELETE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+
+-- Cart Item policy
+GRANT ALL ON TABLE decorasaurus.cart_item TO decorasaurus_customer, decorasaurus_anonymous;
+CREATE POLICY select_cart_item ON decorasaurus.cart_item for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY insert_cart_item ON decorasaurus.cart_item for INSERT TO decorasaurus_customer, decorasaurus_anonymous
+  WITH CHECK (true);
+CREATE POLICY update_cart_item ON decorasaurus.cart_item for UPDATE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY delete_cart_item ON decorasaurus.cart_item for DELETE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+
+-- Product Links policy
+GRANT ALL ON TABLE decorasaurus.product_links TO decorasaurus_customer, decorasaurus_anonymous;
+CREATE POLICY select_product_links ON decorasaurus.product_links for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY insert_product_links ON decorasaurus.product_links for INSERT TO decorasaurus_customer, decorasaurus_anonymous
+  WITH CHECK (true);
+CREATE POLICY update_product_links ON decorasaurus.product_links for UPDATE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY delete_product_links ON decorasaurus.product_links for DELETE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+
+-- Product policy
+GRANT ALL ON TABLE decorasaurus.product TO decorasaurus_customer, decorasaurus_anonymous;
+CREATE POLICY select_product ON decorasaurus.product for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY insert_product ON decorasaurus.product for INSERT TO decorasaurus_customer, decorasaurus_anonymous
+  WITH CHECK (true);
+CREATE POLICY update_product ON decorasaurus.product for UPDATE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY delete_product ON decorasaurus.product for DELETE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+
+-- Product Price policy
+GRANT ALL ON TABLE decorasaurus.product_price TO decorasaurus_customer, decorasaurus_anonymous;
+CREATE POLICY select_product_price ON decorasaurus.product_price for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY insert_product_price ON decorasaurus.product_price for INSERT TO decorasaurus_customer, decorasaurus_anonymous
+  WITH CHECK (true);
+CREATE POLICY update_product_price ON decorasaurus.product_price for UPDATE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
+CREATE POLICY delete_product_price ON decorasaurus.product_price for DELETE TO decorasaurus_customer, decorasaurus_anonymous
+  USING (true);
 
 commit;
