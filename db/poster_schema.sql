@@ -325,11 +325,40 @@ COMMENT ON COLUMN decorasaurus.cart.updated_at IS 'When cart last updated';
 
 -- ALTER TABLE decorasaurus.cart ENABLE ROW LEVEL SECURITY;
 
+-- Limiting choices for product size
+CREATE TYPE decorasaurus.product_size as enum (
+  'small',
+  'medium',
+  'large'
+);
+
+-- Limiting choices for product orientation
+CREATE TYPE decorasaurus.product_orientation as enum (
+  'portrait',
+  'landscape'
+);
+
+-- Limiting choices for overlay type
+CREATE TYPE decorasaurus.overlay_type as enum (
+  'border',
+  'block',
+  'floating'
+);
+
 CREATE TABLE decorasaurus.cart_item (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
   cart_id              UUID REFERENCES decorasaurus.cart(id) ON DELETE CASCADE, -- can set to null as a way to remove from cart without removing the cart item record
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
   quantity             INTEGER NOT NULL CHECK (quantity > 0),
+  size                 decorasaurus.product_size NOT NULL,
+  orientation          decorasaurus.product_orientation NOT NULL,
+  font_color           TEXT,
+  background_color     TEXT,
+  title_text           TEXT,
+  subtitle_text        TEXT,
+  tag_text             TEXT,
+  overlay              decorasaurus.overlay_type,
+  use_label            BOOLEAN NOT NULL default false,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -342,7 +371,16 @@ COMMENT ON TABLE decorasaurus.cart_item IS 'Table with cart item information';
 COMMENT ON COLUMN decorasaurus.cart_item.id IS 'Primary id for cart item';
 COMMENT ON COLUMN decorasaurus.cart_item.cart_id IS 'Reference to cart item is related to';
 COMMENT ON COLUMN decorasaurus.cart_item.product_sku IS 'Reference to product';
-COMMENT ON COLUMN decorasaurus.cart_item.quantity IS 'Quantity of cart items';
+COMMENT ON COLUMN decorasaurus.cart_item.quantity IS 'Quantity of cart item';
+COMMENT ON COLUMN decorasaurus.cart_item.size IS 'Size of cart item';
+COMMENT ON COLUMN decorasaurus.cart_item.orientation IS 'Orientation of cart item';
+COMMENT ON COLUMN decorasaurus.cart_item.font_color IS 'Font color of cart item overlay';
+COMMENT ON COLUMN decorasaurus.cart_item.background_color IS 'Background color of cart item overlay';
+COMMENT ON COLUMN decorasaurus.cart_item.title_text IS 'Title of cart item overlay';
+COMMENT ON COLUMN decorasaurus.cart_item.subtitle_text IS 'Subtitle of cart item overlay';
+COMMENT ON COLUMN decorasaurus.cart_item.tag_text IS 'Tag of cart item overlay';
+COMMENT ON COLUMN decorasaurus.cart_item.overlay IS 'Type of cart item overlay';
+COMMENT ON COLUMN decorasaurus.cart_item.use_label IS 'Toggle of cart item overlay';
 COMMENT ON COLUMN decorasaurus.cart_item.created_at IS 'When cart item created';
 COMMENT ON COLUMN decorasaurus.cart_item.updated_at IS 'When cart item last updated';
 
@@ -424,6 +462,8 @@ CREATE TABLE decorasaurus.order (
   customer_id          UUID NOT NULL REFERENCES decorasaurus.customer(id) ON DELETE CASCADE,
   billing_address_id   UUID NOT NULL REFERENCES decorasaurus.address(id),
   shipping_address_id  UUID NOT NULL REFERENCES decorasaurus.address(id),
+  amount               INTEGER NOT NULL,
+  currency             decorasaurus.currency_type NOT NULL,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -440,6 +480,8 @@ COMMENT ON COLUMN decorasaurus.order.shipping IS 'Shipping status for the order'
 COMMENT ON COLUMN decorasaurus.order.customer_id IS 'Customer reference for the order';
 COMMENT ON COLUMN decorasaurus.order.billing_address_id IS 'Billing address reference for the order';
 COMMENT ON COLUMN decorasaurus.order.shipping_address_id IS 'Shipping address reference for the order';
+COMMENT ON COLUMN decorasaurus.order.amount IS 'Total price for the order';
+COMMENT ON COLUMN decorasaurus.order.currency IS 'Currency paid for the order';
 COMMENT ON COLUMN decorasaurus.order.created_at IS 'When order created';
 COMMENT ON COLUMN decorasaurus.order.updated_at IS 'When order last updated';
 
@@ -449,6 +491,11 @@ CREATE TABLE decorasaurus.order_item (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
   order_id             UUID NOT NULL REFERENCES decorasaurus.order(id) ON DELETE CASCADE,
   product_sku          TEXT NOT NULL REFERENCES decorasaurus.product(sku) ON DELETE CASCADE,
+  amount               INTEGER NOT NULL,
+  currency             decorasaurus.currency_type NOT NULL,
+  quantity             INTEGER NOT NULL,
+  size                 decorasaurus.product_size NOT NULL,
+  orientation          decorasaurus.product_orientation NOT NULL,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -461,6 +508,11 @@ COMMENT ON TABLE decorasaurus.order_item IS 'Table with order item information';
 COMMENT ON COLUMN decorasaurus.order_item.id IS 'Primary id for order item';
 COMMENT ON COLUMN decorasaurus.order_item.order_id IS 'Reference to order id item related to';
 COMMENT ON COLUMN decorasaurus.order_item.product_sku IS 'Reference to product sku';
+COMMENT ON COLUMN decorasaurus.order_item.amount IS 'Total price for the order item';
+COMMENT ON COLUMN decorasaurus.order_item.currency IS 'Currency paid for the order item';
+COMMENT ON COLUMN decorasaurus.order_item.quantity IS 'Quantity of the order item';
+COMMENT ON COLUMN decorasaurus.order_item.size IS 'Size of the order item';
+COMMENT ON COLUMN decorasaurus.order_item.orientation IS 'Orientation of the order item';
 COMMENT ON COLUMN decorasaurus.order_item.created_at IS 'When order created';
 COMMENT ON COLUMN decorasaurus.order_item.updated_at IS 'When order last updated';
 
