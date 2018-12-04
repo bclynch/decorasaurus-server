@@ -206,6 +206,7 @@ CREATE TABLE decorasaurus.customer (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
   first_name           TEXT NOT NULL check (char_length(first_name) < 256),
   last_name            TEXT NOT NULL check (char_length(last_name) < 256),
+  stripe_id            TEXT,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -221,6 +222,7 @@ COMMENT ON TABLE decorasaurus.customer IS 'Table with decorasaurus users';
 COMMENT ON COLUMN decorasaurus.customer.id IS 'Primary id for customer';
 COMMENT ON COLUMN decorasaurus.customer.first_name IS 'First name of customer';
 COMMENT ON COLUMN decorasaurus.customer.last_name IS 'Last name of customer';
+COMMENT ON COLUMN decorasaurus.customer.stripe_id IS 'ID binding customer to stripe';
 COMMENT ON COLUMN decorasaurus.customer.created_at IS 'When customer created';
 COMMENT ON COLUMN decorasaurus.customer.updated_at IS 'When customer last updated';
 
@@ -366,6 +368,7 @@ CREATE TABLE decorasaurus.address (
   postcode             TEXT not null,
   country              TEXT not null,
   instructions         TEXT,
+  default_address      BOOLEAN NOT NULL default false,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
@@ -388,6 +391,7 @@ COMMENT ON COLUMN decorasaurus.address.city IS 'City of the address';
 COMMENT ON COLUMN decorasaurus.address.postcode IS 'Postcode / zipcode of the address';
 COMMENT ON COLUMN decorasaurus.address.country IS 'Country of the address';
 COMMENT ON COLUMN decorasaurus.address.instructions IS 'Extra instructions for the carrier about the address';
+COMMENT ON COLUMN decorasaurus.address.default_address IS 'Indicates whether is users default address';
 COMMENT ON COLUMN decorasaurus.address.created_at IS 'When address created';
 COMMENT ON COLUMN decorasaurus.address.updated_at IS 'When address last updated';
 
@@ -749,6 +753,7 @@ CREATE TYPE zipzap AS (
   first_name TEXT,
   last_name TEXT,
   id UUID,
+  stripe_id TEXT,
   email TEXT
 );
 
@@ -759,6 +764,7 @@ CREATE FUNCTION decorasaurus.current_customer()
     decorasaurus.customer.first_name,
     decorasaurus.customer.last_name,
     decorasaurus.customer.id,
+    decorasaurus.customer.stripe_id,
     decorasaurus_private.user_customer.email
   FROM decorasaurus.customer
 	INNER JOIN decorasaurus_private.user_customer
@@ -824,6 +830,17 @@ CREATE POLICY update_order ON decorasaurus.order for UPDATE TO decorasaurus_cust
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
 CREATE POLICY delete_order ON decorasaurus.order for DELETE TO decorasaurus_customer
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID); 
+
+-- Order Item policy
+GRANT ALL ON TABLE decorasaurus.order_item TO decorasaurus_customer;
+CREATE POLICY select_order_item ON decorasaurus.order_item for SELECT TO decorasaurus_customer
+  USING (true);
+CREATE POLICY insert_order_item ON decorasaurus.order_item for INSERT TO decorasaurus_customer
+  WITH CHECK (true);
+CREATE POLICY update_order_item ON decorasaurus.order_item for UPDATE TO decorasaurus_customer
+  USING (true);
+CREATE POLICY delete_order_item ON decorasaurus.order_item for DELETE TO decorasaurus_customer
+  USING (true); 
 
 -- Cart policy
 GRANT ALL ON TABLE decorasaurus.cart TO decorasaurus_customer, decorasaurus_anonymous;
