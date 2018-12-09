@@ -1,7 +1,7 @@
 BEGIN;
 
 DROP SCHEMA IF EXISTS decorasaurus, decorasaurus_private cascade;
-DROP ROLE IF EXISTS decorasaurus_admin, decorasaurus_anonymous, decorasaurus_customer;
+DROP ROLE IF EXISTS decorasaurus_admin, decorasaurus_anonymous, decorasaurus_customer, decorasaurus_producer;
 
 CREATE SCHEMA decorasaurus;
 CREATE SCHEMA decorasaurus_private;
@@ -204,8 +204,8 @@ $body$;
 -- Maybe create a column for how often they want to receive email notifications
 CREATE TABLE decorasaurus.customer (
   id                   UUID PRIMARY KEY default uuid_generate_v1mc(),
-  first_name           TEXT NOT NULL check (char_length(first_name) < 256),
-  last_name            TEXT NOT NULL check (char_length(last_name) < 256),
+  first_name           TEXT check (char_length(first_name) < 256),
+  last_name            TEXT check (char_length(last_name) < 256),
   stripe_id            TEXT,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
@@ -655,6 +655,43 @@ $$ language plpgsql strict security definer;
 
 COMMENT ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) IS 'Registers and creates a user customer for decorasaurus.';
 
+CREATE TABLE decorasaurus_private.user_producer (
+  producer_id         UUID primary key references decorasaurus.customer(id) on delete cascade,
+  email               TEXT NOT NULL unique check (email ~* '^.+@.+\..+$'),
+  password_hash       TEXT NOT NULL
+);
+
+CREATE TRIGGER user_producer_INSERT_UPDATE_DELETE
+AFTER INSERT OR UPDATE OR DELETE ON decorasaurus_private.user_producer
+FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
+
+COMMENT ON TABLE decorasaurus_private.user_producer IS 'Private information about a user’s account.';
+COMMENT ON COLUMN decorasaurus_private.user_producer.producer_id IS 'The id of the user associated with this producer.';
+COMMENT ON COLUMN decorasaurus_private.user_producer.email IS 'The email address of the producer.';
+COMMENT ON COLUMN decorasaurus_private.user_producer.password_hash IS 'An opaque hash of the producer’s password.';
+
+ALTER TABLE decorasaurus_private.user_producer ENABLE ROW LEVEL SECURITY;
+
+CREATE FUNCTION decorasaurus.register_user_producer (
+  email               TEXT,
+  password            TEXT
+) returns decorasaurus.customer as $$
+declare
+  producer decorasaurus.customer;
+begin
+  INSERT into decorasaurus.customer (first_name, last_name) values
+    (NULL, NULL)
+    returning * into producer;
+
+  INSERT INTO decorasaurus_private.user_producer (producer_id, email, password_hash) values
+    (producer.id, email, crypt(password, gen_salt('bf')));
+
+  return producer;
+end;
+$$ language plpgsql strict security definer;
+
+COMMENT ON FUNCTION decorasaurus.register_user_producer(TEXT, TEXT) IS 'Registers and creates a user producer for decorasaurus.';
+
 CREATE TABLE decorasaurus_private.admin_account (
   account_id          UUID primary key references decorasaurus.customer(id) on delete cascade,
   email               TEXT NOT NULL unique check (email ~* '^.+@.+\..+$'),
@@ -670,8 +707,6 @@ COMMENT ON COLUMN decorasaurus_private.admin_account.account_id IS 'The id of th
 COMMENT ON COLUMN decorasaurus_private.admin_account.email IS 'The email address of the admin account.';
 COMMENT ON COLUMN decorasaurus_private.admin_account.password_hash IS 'An opaque hash of the admin account’s password.';
 
-create extension IF NOT EXISTS "pgcrypto";
-
 CREATE FUNCTION decorasaurus.register_admin_account (
   email               TEXT,
   password            TEXT
@@ -679,6 +714,9 @@ CREATE FUNCTION decorasaurus.register_admin_account (
 declare
   account decorasaurus.customer;
 begin
+  INSERT into decorasaurus.customer (first_name, last_name) values
+    (NULL, NULL)
+    returning * into account;
 
   INSERT INTO decorasaurus_private.admin_account (account_id, email, password_hash) VALUES
     (account.id, email, crypt(password, gen_salt('bf')));
@@ -747,8 +785,11 @@ CREATE ROLE decorasaurus_anonymous login password 'abc123' NOINHERIT;
 GRANT decorasaurus_anonymous TO decorasaurus_admin; --Now, the decorasaurus_admin role can control and become the decorasaurus_anonymous role. If we did not use that GRANT, we could not change into the decorasaurus_anonymous role in PostGraphQL.
 
 CREATE ROLE decorasaurus_customer;
-GRANT decorasaurus_customer TO decorasaurus_admin; --The decorasaurus_admin role will have all of the permissions of the roles GRANTed to it. So it can do everything decorasaurus_anonymous can do and everything decorasaurus_usercan do.
-GRANT decorasaurus_customer TO decorasaurus_anonymous; 
+GRANT decorasaurus_customer TO decorasaurus_admin; --The decorasaurus_admin role will have all of the permissions of the roles GRANTed to it. So it can do everything decorasaurus_anonymous can do and everything decorasaurus_user can do.
+GRANT decorasaurus_customer TO decorasaurus_anonymous;
+
+CREATE ROLE decorasaurus_producer;
+GRANT decorasaurus_producer TO decorasaurus_admin;
 
 CREATE TYPE decorasaurus.jwt_token as (
   ROLE TEXT,
@@ -779,6 +820,27 @@ $$ language plpgsql strict security definer;
 
 COMMENT ON FUNCTION decorasaurus.authenticate_user_customer(TEXT, TEXT) IS 'Creates a JWT token that will securely identify a customer and give them certain permissions.';
 
+CREATE FUNCTION decorasaurus.authenticate_user_producer(
+  email TEXT,
+  password TEXT
+) returns decorasaurus.jwt_token as $$
+declare
+  producer decorasaurus_private.user_producer;
+begin
+  select a.* into producer
+  from decorasaurus_private.user_producer as a
+  where a.email = $1;
+
+  if producer.password_hash = crypt(password, producer.password_hash) then
+    return ('decorasaurus_producer', producer.producer_id, extract(epoch from (now() + interval '1 week')))::decorasaurus.jwt_token;
+  else
+    return null;
+  end if;
+end;
+$$ language plpgsql strict security definer;
+
+COMMENT ON FUNCTION decorasaurus.authenticate_user_producer(TEXT, TEXT) IS 'Creates a JWT token that will securely identify a producer account and give them certain permissions.';
+
 CREATE FUNCTION decorasaurus.authenticate_admin_account(
   email TEXT,
   password TEXT
@@ -800,8 +862,8 @@ $$ language plpgsql strict security definer;
 
 COMMENT ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) IS 'Creates a JWT token that will securely identify an admin account and give them certain permissions.';
 
-DROP TYPE IF EXISTS zipzap;
-CREATE TYPE zipzap AS (
+DROP TYPE IF EXISTS customer_type;
+CREATE TYPE customer_type AS (
   first_name TEXT,
   last_name TEXT,
   id UUID,
@@ -810,7 +872,7 @@ CREATE TYPE zipzap AS (
 );
 
 CREATE FUNCTION decorasaurus.current_customer() 
-  RETURNS zipzap 
+  RETURNS customer_type 
   AS $$
   SELECT
     decorasaurus.customer.first_name,
@@ -826,34 +888,62 @@ $$ language sql stable;
 
 COMMENT ON FUNCTION decorasaurus.current_customer() IS 'Gets the customer that was identified by our JWT.';
 
+DROP TYPE IF EXISTS producer_type;
+CREATE TYPE producer_type AS (
+  id UUID,
+  email TEXT
+);
+
+CREATE FUNCTION decorasaurus.current_producer() 
+  RETURNS producer_type 
+  AS $$
+  SELECT
+    decorasaurus.customer.id,
+    decorasaurus_private.user_producer.email
+  FROM decorasaurus.customer
+	INNER JOIN decorasaurus_private.user_producer
+	ON decorasaurus.customer.id = decorasaurus_private.user_producer.producer_id
+  WHERE decorasaurus.customer.id = current_setting('jwt.claims.customer_id', true)::UUID
+$$ language sql stable;
+
+COMMENT ON FUNCTION decorasaurus.current_producer() IS 'Gets the producer that was identified by our JWT.';
+
 -- *******************************************************************
 -- ************************* Security *********************************
 -- *******************************************************************
 
-GRANT USAGE ON SCHEMA decorasaurus TO decorasaurus_anonymous, decorasaurus_customer;
-GRANT USAGE ON ALL sequences IN schema decorasaurus TO decorasaurus_customer;
+GRANT USAGE ON SCHEMA decorasaurus TO decorasaurus_anonymous, decorasaurus_customer, decorasaurus_producer;
+GRANT USAGE ON ALL sequences IN schema decorasaurus TO decorasaurus_customer, decorasaurus_producer;
 
 GRANT EXECUTE ON FUNCTION decorasaurus.register_user_customer(TEXT, TEXT, TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
 GRANT EXECUTE ON FUNCTION decorasaurus.register_admin_account(TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.register_user_producer(TEXT, TEXT) TO decorasaurus_anonymous;
 GRANT EXECUTE ON FUNCTION decorasaurus.update_password(UUID, TEXT, TEXT) TO decorasaurus_customer;
 GRANT EXECUTE ON FUNCTION decorasaurus.reset_password(TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
 GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_user_customer(TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_customer;
-GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) TO decorasaurus_anonymous;
+GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_admin;
+GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_user_producer(TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_producer;
 GRANT EXECUTE ON FUNCTION decorasaurus.current_customer() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION decorasaurus.current_producer() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION uuid_generate_v1mc() TO PUBLIC;
 
 -- ///////////////// RLS Policies ////////////////////////////////
 
 -- Private policy. Want read only by logged in user of own account email
-GRANT USAGE ON SCHEMA decorasaurus_private TO decorasaurus_customer;
+GRANT USAGE ON SCHEMA decorasaurus_private TO decorasaurus_customer, decorasaurus_producer;
 GRANT SELECT(customer_id, email) ON TABLE decorasaurus_private.user_customer TO decorasaurus_customer;
+GRANT SELECT(producer_id, email) ON TABLE decorasaurus_private.user_producer TO decorasaurus_producer;
 CREATE POLICY select_private_customer ON decorasaurus_private.user_customer for SELECT TO decorasaurus_customer
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY select_private_producer ON decorasaurus_private.user_producer for SELECT TO decorasaurus_producer
+  USING (producer_id = current_setting('jwt.claims.customer_id')::UUID);
 
 -- Account policy
-GRANT ALL ON TABLE decorasaurus.customer TO decorasaurus_customer, decorasaurus_anonymous;
+GRANT ALL ON TABLE decorasaurus.customer TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer;
 CREATE POLICY select_customer ON decorasaurus.customer for SELECT TO decorasaurus_customer
   USING (id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY select_customer_producer ON decorasaurus.customer for SELECT TO decorasaurus_producer
+  USING (true);
 CREATE POLICY insert_customer ON decorasaurus.customer for INSERT TO decorasaurus_anonymous, decorasaurus_customer
   WITH CHECK (true);
 CREATE POLICY update_customer ON decorasaurus.customer for UPDATE TO decorasaurus_customer
@@ -862,8 +952,8 @@ CREATE POLICY delete_customer ON decorasaurus.customer for DELETE TO decorasauru
   USING (id = current_setting('jwt.claims.customer_id')::UUID);
 
 -- Address policy
-GRANT ALL ON TABLE decorasaurus.address TO decorasaurus_customer;
-CREATE POLICY select_address ON decorasaurus.address for SELECT TO decorasaurus_customer
+GRANT ALL ON TABLE decorasaurus.address TO decorasaurus_customer, decorasaurus_producer;
+CREATE POLICY select_address ON decorasaurus.address for SELECT TO decorasaurus_customer, decorasaurus_producer
   USING (true);
 CREATE POLICY insert_address ON decorasaurus.address for INSERT TO decorasaurus_customer
   WITH CHECK (customer_id = current_setting('jwt.claims.customer_id')::UUID);
@@ -873,23 +963,27 @@ CREATE POLICY delete_address ON decorasaurus.address for DELETE TO decorasaurus_
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID); 
 
 -- Order policy
-GRANT ALL ON TABLE decorasaurus.order TO decorasaurus_customer;
-CREATE POLICY select_order ON decorasaurus.order for SELECT TO decorasaurus_customer
+GRANT ALL ON TABLE decorasaurus.order TO decorasaurus_customer, decorasaurus_producer;
+CREATE POLICY select_order_producer ON decorasaurus.order for SELECT TO decorasaurus_producer
   USING (true);
+CREATE POLICY select_order ON decorasaurus.order for SELECT TO decorasaurus_customer
+  USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
 CREATE POLICY insert_order ON decorasaurus.order for INSERT TO decorasaurus_customer
   WITH CHECK (customer_id = current_setting('jwt.claims.customer_id')::UUID);
 CREATE POLICY update_order ON decorasaurus.order for UPDATE TO decorasaurus_customer
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID);
+CREATE POLICY update_order_producer ON decorasaurus.order for UPDATE TO decorasaurus_producer
+  USING (true);
 CREATE POLICY delete_order ON decorasaurus.order for DELETE TO decorasaurus_customer
   USING (customer_id = current_setting('jwt.claims.customer_id')::UUID); 
 
 -- Order Item policy
-GRANT ALL ON TABLE decorasaurus.order_item TO decorasaurus_customer;
-CREATE POLICY select_order_item ON decorasaurus.order_item for SELECT TO decorasaurus_customer
+GRANT ALL ON TABLE decorasaurus.order_item TO decorasaurus_customer, decorasaurus_producer;
+CREATE POLICY select_order_item ON decorasaurus.order_item for SELECT TO decorasaurus_customer, decorasaurus_producer
   USING (true);
 CREATE POLICY insert_order_item ON decorasaurus.order_item for INSERT TO decorasaurus_customer
   WITH CHECK (true);
-CREATE POLICY update_order_item ON decorasaurus.order_item for UPDATE TO decorasaurus_customer
+CREATE POLICY update_order_item ON decorasaurus.order_item for UPDATE TO decorasaurus_customer, decorasaurus_producer
   USING (true);
 CREATE POLICY delete_order_item ON decorasaurus.order_item for DELETE TO decorasaurus_customer
   USING (true); 
@@ -917,8 +1011,8 @@ CREATE POLICY delete_cart_item ON decorasaurus.cart_item for DELETE TO decorasau
   USING (true);
 
 -- Product Links policy
-GRANT ALL ON TABLE decorasaurus.product_links TO decorasaurus_customer, decorasaurus_anonymous;
-CREATE POLICY select_product_links ON decorasaurus.product_links for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+GRANT ALL ON TABLE decorasaurus.product_links TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer;
+CREATE POLICY select_product_links ON decorasaurus.product_links for SELECT TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer
   USING (true);
 CREATE POLICY insert_product_links ON decorasaurus.product_links for INSERT TO decorasaurus_customer, decorasaurus_anonymous
   WITH CHECK (true);
@@ -928,8 +1022,8 @@ CREATE POLICY delete_product_links ON decorasaurus.product_links for DELETE TO d
   USING (true);
 
 -- Product policy
-GRANT ALL ON TABLE decorasaurus.product TO decorasaurus_customer, decorasaurus_anonymous;
-CREATE POLICY select_product ON decorasaurus.product for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+GRANT ALL ON TABLE decorasaurus.product TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer;
+CREATE POLICY select_product ON decorasaurus.product for SELECT TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer
   USING (true);
 CREATE POLICY insert_product ON decorasaurus.product for INSERT TO decorasaurus_customer, decorasaurus_anonymous
   WITH CHECK (true);
@@ -939,8 +1033,8 @@ CREATE POLICY delete_product ON decorasaurus.product for DELETE TO decorasaurus_
   USING (true);
 
 -- Product Price policy
-GRANT ALL ON TABLE decorasaurus.product_price TO decorasaurus_customer, decorasaurus_anonymous;
-CREATE POLICY select_product_price ON decorasaurus.product_price for SELECT TO decorasaurus_customer, decorasaurus_anonymous
+GRANT ALL ON TABLE decorasaurus.product_price TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer;
+CREATE POLICY select_product_price ON decorasaurus.product_price for SELECT TO decorasaurus_customer, decorasaurus_anonymous, decorasaurus_producer
   USING (true);
 CREATE POLICY insert_product_price ON decorasaurus.product_price for INSERT TO decorasaurus_customer, decorasaurus_anonymous
   WITH CHECK (true);

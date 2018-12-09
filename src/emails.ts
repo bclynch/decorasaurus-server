@@ -1,18 +1,20 @@
-// const express = require('express'),
-// router = express.Router(),
-// fs = require('fs'),
-// nodemailer = require('nodemailer');
-// require('dotenv').config();
+import express from 'express';
+const router = express.Router();
+import dotenv from 'dotenv';
+dotenv.config();
+import fs from 'fs';
+// @ts-ignore
+import nodemailer from 'nodemailer';
 
-// const transporter = nodemailer.createTransport({
-//     host: 'smtp.zoho.com',
-//     port: 465,
-//     secure: true, // use SSL
-//     auth: {
-//       user: 'bot@packonmyback.com',
-//       pass: process.env.BOT_PASSWORD
-//     }
-// });
+const transporter = nodemailer.createTransport({
+    auth: {
+      pass: process.env.BOT_PASSWORD,
+      user: 'bot@packonmyback.com',
+    },
+    host: 'smtp.zoho.com',
+    port: 465,
+    secure: true, // use SSL
+});
 
 // function sendToUsers(options, usersArr) {
 //   return new Promise((resolve, reject) => {
@@ -50,20 +52,20 @@
 //   );
 // });
 
-// router.post('/reset', (req, res) => {
-//   const mailOptions = {
-//     to: req.body.user,
-//     from: '"Pack On My Back " <bot@packonmyback.com>',
-//     subject: 'Pack On My Back Password Reset',
-//     text: 'You are receiving this because you have requested the reset of the password for your account.\n\n' +
-//       'The following is your new password. Please use it to sign back in:\n\n' + req.body.pw
-//   };
-//   transporter.sendMail(mailOptions, (error, info) => {
-//     if (error) res.send({ error });
-//     console.log('MESSAGE: ', info.response);
-//     res.send({ result: 'Forgot email sent' })
-//   });
-// });
+router.post('/reset', (req, res) => {
+  const mailOptions = {
+    to: req.body.user,
+    from: '"Pack On My Back " <bot@packonmyback.com>',
+    subject: 'Pack On My Back Password Reset',
+    text: 'You are receiving this because you have requested the reset of the password for your account.\n\n' +
+      'The following is your new password. Please use it to sign back in:\n\n' + req.body.pw,
+  };
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) res.send({ error });
+    console.log('MESSAGE: ', info.response);
+    res.send({ result: 'Forgot email sent' });
+  });
+});
 
 // router.post('/registration', (req, res) => {
 //   const template = fs.readFileSync('./emailTemplates/POMB Welcome.html', { encoding:'utf-8' });
@@ -82,23 +84,23 @@
 //   });
 // });
 
-// router.post('/contact', (req, res) => {
+router.post('/contact', (req, res) => {
 
-//   // might be wise to save this in a table eventually and can answer via admin dash, but for now this is fine
+  // might be wise to save this in a table eventually and can answer via admin dash, but for now this is fine
 
-//   const mailOptions = {
-//     to: 'brendan@packonmyback.com',
-//     from: '"POMB Contact" <bot@packonmyback.com>',
-//     subject: req.body.data.why + ' contact request',
-//     text: 'Email received from ' + req.body.data.name + ' at ' + req.body.data.email + '\n\n' +
-//       'The following is a ' + req.body.data.why + ' contact request:\n\n' + req.body.data.content
-//   };
+  const mailOptions = {
+    to: 'admin@decorasaurus.com',
+    from: '"POMB Contact" <bot@packonmyback.com>',
+    subject: req.body.data.why + ' contact request',
+    text: 'Email received from ' + req.body.data.name + ' at ' + req.body.data.email + '\n\n' +
+      'The following is a ' + req.body.data.why + ' contact request:\n\n' + req.body.data.content,
+  };
 
-//   transporter.sendMail(mailOptions, (error, info) => {
-//     if (error) res.send({ error });
-//     console.log('MESSAGE: ', info.response);
-//     res.send({ result: 'Contact email sent' })
-//   });
-// });
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) res.send({ error });
+    console.log('MESSAGE: ', info.response);
+    res.send({ result: 'Contact email sent' });
+  });
+});
 
 // module.exports = router;
