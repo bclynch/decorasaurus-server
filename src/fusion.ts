@@ -10,45 +10,47 @@ import http from 'https';
 import path from 'path';
 import request from 'request';
 const CronJob = cron.CronJob;
-import { fetchFusionOrders } from './moltin';
+const db = require('../db/index.js');
 
 let jobName: string;
 let endpoint: string;
 
 export function init() {
   // setup job to fire every night to process orders
-  const job = new CronJob('00 47 16 * * *', () => {
-    console.log('Starting to process fusion orders...');
-    // first fetch new fusion orders from last day til present
-    // figuring out custom fields for order item
-    fetchFusionOrders().then(
-      (orders) => {
-        console.log(orders);
+  // const job = new CronJob('00 47 16 * * *', () => {
+  //   console.log('Starting to process fusion orders...');
+  //   // first fetch new fusion orders from last day til present
+  //   // figuring out custom fields for order item
+  //   fetchFusionOrders().then(
+  //     (result) => {
+  //       console.log(result.rows);
+          // run a foreach on row items then an indexOf on the types arr checking for pdf
+          // if not then add the object to an array for needing to be processed with floydhub
 
-        // then filter out any that have the relevant custom field populated already
+  //       // then filter out any that have the relevant custom field populated already
 
-        // then turn on floydhub server
-        // turnOnServer().then(
-        //   () => turnOffServer(jobName),
-        // );
+  //       // then turn on floydhub server
+  //       // turnOnServer().then(
+  //       //   () => turnOffServer(jobName),
+  //       // );
 
-        // then go one by one and fetch the img from S3 and send cropped image to floydhub for processing
-        // downloadImage('https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-pdf-1542388439974.pdf', './temp/fusion.pdf').then(
-        //   () => console.log('finished downloading'),
-        // );
+  //       // then go one by one and fetch the img from S3 and send cropped image to floydhub for processing
+  //       // downloadImage('https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-pdf-1542388439974.pdf', './temp/fusion.pdf').then(
+  //       //   () => console.log('finished downloading'),
+  //       // );
 
-        // when received back from floydhub remove temp + process image into pdf and all then send to S3
-        // fs.unlinkSync('./temp/fusion.pdf');
+  //       // when received back from floydhub remove temp + process image into pdf and all then send to S3
+  //       // fs.unlinkSync('./temp/fusion.pdf');
 
-        // patch the moltin order with the S3 URL
+  //       // patch the moltin order with the S3 URL
 
-        // once completed turn off server
-      },
-      (err) => console.log(err),
-    );
-  });
+  //       // once completed turn off server
+  //     },
+  //     (err) => console.log(err),
+  //   );
+  // });
   // job.start();
-  console.log('Fusion procesing cron job started');
+  // console.log('Fusion procesing cron job started');
 
   // const file = fs.readFileSync(path.resolve(__dirname, '../temp/posterRaw.jpeg'));
   // console.log(file);
@@ -62,15 +64,15 @@ export function init() {
       // downloadImage('https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1542388439993.jpeg', './temp/posterRaw.jpeg').then(
       //   () => {
           // console.log('finished downloading image');
-      abc();
-          // sendToFloydhub('./temp/posterFused.jpg', './temp/posterRaw.jpeg', 'scream').then(
-          //   () => {
-          //     // fs.unlinkSync('./temp/posterRaw.jpeg');
-          //     // turnOffServer(jobName).then(
-          //     //   () => console.log('finished processing fusion posters'),
-          //     // );
-          //   },
+      // abc();
+      sendToFloydhub('./temp/posterFused.jpg', './temp/posterRaw.jpeg', 'scream').then(
+        () => {
+          // fs.unlinkSync('./temp/posterRaw.jpeg');
+          // turnOffServer(jobName).then(
+          //   () => console.log('finished processing fusion posters'),
           // );
+        },
+      );
         // },
       // );
     },
@@ -83,6 +85,12 @@ export function turnOnServer(): Promise<void> {
     const child = spawn('cd ../fast-style-transfer && floyd run --env tensorflow-1.5 --data narenst/datasets/neural-style-transfer-pre-trained-models/1:input --mode serve', [], { shell: true });
     child.stderr.on('data', (data) => {
       console.error('STDERR:', data.toString());
+
+      // it's possible to get logged out if this is the case need to catch it here
+      if (data.toString() === 'Error: Authentication failed. Retry by invoking floyd login.') {
+
+        // command to be run is `floyd login --username bclynch --password Bear2013!`
+      }
     });
     child.stdout.on('data', (data) => {
       const message = data.toString();
@@ -94,7 +102,7 @@ export function turnOnServer(): Promise<void> {
       // this is last message from Floyd so it's spun up and we can start sending images over
       if (message.split(':')[0] === 'URL to service endpoint') {
         endpoint = message.split('endpoint:')[1].trim();
-        console.log(endpoint)
+        console.log(endpoint);
       }
     });
     child.on('exit', (exitCode) => {
@@ -123,8 +131,14 @@ export function turnOffServer(name: string): Promise<void> {
 
 function sendToFloydhub(outputPath: string, inputPath: string, painting: 'udnie' | 'rain_princess' | 'scream' | 'wave' | 'wreck' | 'la_muse'): Promise<void> {
   return new Promise((resolve, reject) => {
-    // const child = spawn(`curl -o "${outputPath}" -F "file=@${inputPath}" -F "checkpoint=${painting}.ckpt" ${endpoint}`, [], { shell: true });
-    const child = spawn(`curl -o "./temp/posterFused.jpg" -F "file=@./temp/posterRaw.jpeg" -F "checkpoint=wave.ckpt" ${endpoint}`, [], { shell: true });
+    const args = [];
+    args.push('-o ./temp/posterFused.jpg');
+    args.push('-F file=@/Users/bclynch/Desktop/github/poster-server/temp/posterRaw.jpeg'); // this path needs to be setup like this or no dice
+    args.push('-F checkpoint=rain_princess.ckpt');
+    args.push(endpoint);
+    // max buffer has to be big enough default is 200 kb this is 500. Increase as required
+    // also max buffer isnt in the types file (@types/node/index.d.ts) for some reason. I've added it locally, but maybe turn off?
+    const child = spawn('curl', args, { shell: true, maxBuffer: 1024 * 500 });
     child.stderr.on('data', (data) => {
       console.error('STDERR:', data.toString());
     });
@@ -281,5 +295,26 @@ function downloadImage(imageUrl: string, path: string): Promise<void> {
         resolve();
       },
     );
+  });
+}
+
+function fetchFusionOrders(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    // // filtering by the date prior to today since script run once a day and looking for all orders since then
+    // const d = new Date();
+    // // need to check if first day of year. If so set to last year
+    // const year = d.getMonth() === 0 && d.getDate() === 1 ? d.getFullYear() - 1 : d.getFullYear();
+    // // need to check if first day of the month. If so set to last month
+    // const month = d.getDate() === 1 ? (d.getMonth() === 0 ? 12 : d.getMonth()) : d.getMonth() + 1;
+    // // Need to check if first day of the month. If so need to make last day of the prior month
+    // const day = d.getDate() === 1 ? (d.getMonth() === 0 ? 31 : daysInMonth(d.getMonth(), d.getFullYear())) : d.getDate() - 1;
+
+    // Returns rows of product_links where the row was created in last 24 hours and order item is populated
+    // from there in JS we can filter for order items that have pdf url empty which means its a fusion that needs processing
+    const sql = `SELECT order_item_id, string_agg(type::character varying, ', ') as types, string_agg(url, ', ') as urls FROM decorasaurus.product_links WHERE order_item_id IS NOT NULL AND created_at > ${Date.now() - 86400000} GROUP BY order_item_id;`;
+    db.query(sql, (err: any, res: any) => {
+      if (err) reject(err);
+      resolve(res);
+    });
   });
 }
