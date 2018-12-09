@@ -10,6 +10,7 @@ import moltinRouter from './moltin';
 import patentRouter from './patent';
 import posterRouter from './poster';
 import posterizeRouter from './posterize';
+import shippoRouter from './shippo';
 import stripeRouter from './stripe';
 const app = express();
 const router = express.Router();
@@ -63,6 +64,7 @@ router.use('/patent', patentRouter);
 router.use('/moltin', moltinRouter);
 router.use('/stripe', stripeRouter);
 router.use('/poster', posterRouter);
+router.use('/shippo', shippoRouter);
 
 // api mount path
 app.use('/api', router);

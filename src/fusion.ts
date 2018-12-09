@@ -2,8 +2,8 @@ import axios from 'axios';
 import { exec, spawn } from 'child_process';
 import cron from 'cron';
 // @ts-ignore
-import curl from 'node-libcurl';
-const Curl = curl.Curl;
+// import curl from 'node-libcurl';
+// const Curl = curl.Curl;
 import FormData from 'form-data';
 import fs from 'fs';
 import http from 'https';
