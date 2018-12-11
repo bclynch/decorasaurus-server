@@ -8,6 +8,9 @@
 - Turn on colorspace conversion
 - ~~Create dev / prod env with Moltin and S3 with decorasaurus email~~
 - Fusion / Floyd integration
+    - ~~Get curl statement in child spawn working~~
+    - Finish flow
+    - Add login check
 - Cloudflare integration
 - Setup postmark email
 

@@ -515,6 +515,7 @@ INSERT INTO decorasaurus.order_item (id, order_id, product_sku, amount, currency
   ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'patent', 6000, 'USD', 1, 'small', 'portrait', NULL),
   ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e8', 'fusion', 6000, 'USD', 1, 'large', 'portrait', 'wave');
 
+
 CREATE TRIGGER order_item_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.order_item
 FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
