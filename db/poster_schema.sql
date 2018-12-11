@@ -215,8 +215,8 @@ CREATE TRIGGER customer_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.customer
 FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
 
--- INSERT INTO pomb.account (username, first_name, last_name, profile_photo, city, country, user_status, auto_update_location) values
---   ('teeth-creep', 'Ms', 'D', 'https://laze-app.s3.amazonaws.com/19243203_10154776689779211_34706076750698170_o-w250-1509052127322.jpg', 'London', 'UK', 'Living the dream', true);
+INSERT INTO decorasaurus.customer (id, first_name, last_name, stripe_id) values
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e5', 'Ms', 'D', null);
 
 COMMENT ON TABLE decorasaurus.customer IS 'Table with decorasaurus users';
 COMMENT ON COLUMN decorasaurus.customer.id IS 'Primary id for customer';
@@ -403,6 +403,7 @@ CREATE TABLE decorasaurus.address (
   line_1               TEXT not null,
   line_2               TEXT,
   city                 TEXT not null,
+  state                TEXT,
   postcode             TEXT not null,
   country              TEXT not null,
   instructions         TEXT,
@@ -410,6 +411,9 @@ CREATE TABLE decorasaurus.address (
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
+
+INSERT INTO decorasaurus.address (id, customer_id, type, first_name, last_name, line_1, line_2, city, state, postcode, country, instructions) values
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e6', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e5', 'billing', 'Ms.', 'D', '123 ABC St.', 'Apt 4', 'San Francisco', 'CA', '12345', 'US', 'Dont fuck it up');
 
 CREATE TRIGGER address_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.address
@@ -426,6 +430,7 @@ COMMENT ON COLUMN decorasaurus.address.company IS 'Company of address';
 COMMENT ON COLUMN decorasaurus.address.line_1 IS 'First line of address';
 COMMENT ON COLUMN decorasaurus.address.line_2 IS 'Optional second line of address';
 COMMENT ON COLUMN decorasaurus.address.city IS 'City of the address';
+COMMENT ON COLUMN decorasaurus.address.state IS 'State of the address';
 COMMENT ON COLUMN decorasaurus.address.postcode IS 'Postcode / zipcode of the address';
 COMMENT ON COLUMN decorasaurus.address.country IS 'Country of the address';
 COMMENT ON COLUMN decorasaurus.address.instructions IS 'Extra instructions for the carrier about the address';
@@ -468,6 +473,10 @@ CREATE TABLE decorasaurus.order (
   updated_at           TIMESTAMP default now()
 );
 
+INSERT INTO decorasaurus.order (id, status, payment, shipping, customer_id, billing_address_id, shipping_address_id, amount, currency) values
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'incomplete', 'paid', 'unfulfilled', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e5', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e6', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e6', 12000, 'USD'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e8', 'incomplete', 'paid', 'unfulfilled', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e5', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e6', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e6', 6000, 'USD');
+
 CREATE TRIGGER order_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.order
 FOR EACH ROW EXECUTE PROCEDURE decorasaurus_private.if_modified_func();
@@ -496,9 +505,15 @@ CREATE TABLE decorasaurus.order_item (
   quantity             INTEGER NOT NULL,
   size                 decorasaurus.product_size NOT NULL,
   orientation          decorasaurus.product_orientation NOT NULL,
+  fusion_type          TEXT,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
+
+INSERT INTO decorasaurus.order_item (id, order_id, product_sku, amount, currency, quantity, size, orientation, fusion_type) values
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e9', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'fusion', 6000, 'USD', 1, 'medium', 'portrait', 'udnie'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'patent', 6000, 'USD', 1, 'small', 'portrait', NULL),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e8', 'fusion', 6000, 'USD', 1, 'large', 'portrait', 'wave');
 
 CREATE TRIGGER order_item_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.order_item
@@ -513,6 +528,7 @@ COMMENT ON COLUMN decorasaurus.order_item.currency IS 'Currency paid for the ord
 COMMENT ON COLUMN decorasaurus.order_item.quantity IS 'Quantity of the order item';
 COMMENT ON COLUMN decorasaurus.order_item.size IS 'Size of the order item';
 COMMENT ON COLUMN decorasaurus.order_item.orientation IS 'Orientation of the order item';
+COMMENT ON COLUMN decorasaurus.order_item.orientation IS 'Fusion type for fusion posters';
 COMMENT ON COLUMN decorasaurus.order_item.created_at IS 'When order created';
 COMMENT ON COLUMN decorasaurus.order_item.updated_at IS 'When order last updated';
 
@@ -534,6 +550,12 @@ CREATE TABLE decorasaurus.product_links (
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
+INSERT INTO decorasaurus.product_links (order_item_id, type, url) values
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e9', 'pdf', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-pdf-1544368434960.pdf'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e9', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', 'pdf', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-pdf-1544368434960.pdf'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg');
 
 CREATE TRIGGER product_links_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.product_links

@@ -1,4 +1,4 @@
-# Decorasaurus
+# Decorasaurus Server
 
 ## Todos
 - ~~Make typescript server~~

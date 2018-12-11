@@ -2,11 +2,11 @@ import bodyParser from 'body-parser';
 import compression from 'compression';
 import cors from 'cors';
 import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import fs from 'fs';
 import morgan from 'morgan';
 import { init } from './fusion';
-import moltinRouter from './moltin';
 import patentRouter from './patent';
 import posterRouter from './poster';
 import posterizeRouter from './posterize';
@@ -17,7 +17,6 @@ const router = express.Router();
 import { postgraphile } from 'postgraphile';
 // @ts-ignore
 import PostGraphileConnectionFilterPlugin from 'postgraphile-plugin-connection-filter';
-dotenv.config();
 
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 50000 }));
@@ -52,6 +51,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // set up cron job for processing fusion images
+if (process.env.NODE_ENV === 'production') init();
 // init();
 
 // set up the logger
@@ -61,7 +61,6 @@ app.use(morgan('combined',  { stream: accessLogStream }));
 // routes
 router.use('/posterize', posterizeRouter);
 router.use('/patent', patentRouter);
-router.use('/moltin', moltinRouter);
 router.use('/stripe', stripeRouter);
 router.use('/poster', posterRouter);
 router.use('/shippo', shippoRouter);

@@ -7,7 +7,6 @@ import multer from 'multer';
 import pdfMake from 'pdfmake/build/pdfmake';
 // @ts-ignore
 import sharp from 'sharp';
-import util from 'util';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 25 * 1024 * 1024 * 1024 } });
 // Access key and secret id being pulled from env vars and in my drive as backup
@@ -15,30 +14,48 @@ aws.config.update({ region: process.env.AWS_REGION });
 const bucketName = process.env.NODE_ENV === 'production' ? 'packonmyback-production' : 'packonmyback-dev';
 const photoBucket = process.env.NODE_ENV === 'production' ? new aws.S3({params: {Bucket: 'packonmyback-production'}}) : new aws.S3({params: {Bucket: 'packonmyback-dev'}});
 
-router.post('/process', upload.single('poster'), (req, res) => {
+router.post('/process', upload.fields([{ name: 'poster', maxCount: 1 }, { name: 'crop', maxCount: 1 }]), (req, res) => {
 
-  const S3LinksArr: Array<{ type: 'thumbnail' | 'pdf', S3Url: string }> = [];
+  const S3LinksArr: Array<{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> = [];
 
+  const promises = [];
   // create local thumbnail 220 x 330 jpg (will depend on orientation) and upload to S3 and return with response to be added to custom product field
   const thumbnailPromise: any = new Promise((resolve, reject) => {
-    resizeAndUploadImage(req.body.poster, [{ width: 250 }], 80, 'jpeg', 'thumbnail').then((data) => {
+    resizeAndUploadImage(req.body.poster, [{ width: 250, height: null }], 80, 'jpeg', 'thumbnail').then((data) => {
       console.log('Processed img link arr: ', data);
 
       S3LinksArr.push(data);
       resolve(); // resolve for resize img promise
     });
   });
-  // create a pdf for our image and upload to S3 and return with response to be added to custom product field
-  const pdfPromise: any = new Promise((resolve, reject) => {
-    createAndUploadPDF(req.body.poster, req.body.orientation, req.body.size).then((data) => {
-      console.log('Processed img link arr: ', data);
+  promises.push(thumbnailPromise);
 
-      S3LinksArr.push(data);
-      resolve(); // resolve for pdf promise
+  // if crop is defined it means it's a fusion and we don't need pdf for it yet
+  if (req.body.crop === 'undefined') {
+    // console.log('firing pdf');
+    // create a pdf for our image and upload to S3 and return with response to be added to custom product field
+    const pdfPromise: any = new Promise((resolve, reject) => {
+      createAndUploadPDF(req.body.poster, req.body.orientation, req.body.size).then((data) => {
+        console.log('Processed img link arr: ', data);
+
+        S3LinksArr.push(data);
+        resolve(); // resolve for pdf promise
+      });
     });
-  });
+    promises.push(pdfPromise);
+  } else {
+    const cropPromise: any = new Promise((resolve, reject) => {
+      resizeAndUploadImage(req.body.crop, [{ width: null, height: null }], 90, 'jpeg', 'crop').then((data) => {
+        console.log('Processed img link arr: ', data);
 
-  Promise.all([thumbnailPromise, pdfPromise]).then(() => {
+        S3LinksArr.push(data);
+        resolve(); // resolve for resize img promise
+      });
+    });
+    promises.push(cropPromise);
+  }
+
+  Promise.all(promises).then(() => {
     console.log('promise all complete');
     res.send(JSON.stringify(S3LinksArr));
   });
@@ -50,34 +67,34 @@ router.post('/process', upload.single('poster'), (req, res) => {
 ///////////////////////////////////////////////////////
 
 // Take in img file, what sizes we would like, and the quality of img
-function resizeAndUploadImage(file: string, sizes: Array<{ width: number }>, quality: number, type: 'png' | 'jpeg' | 'webp', name?: string): Promise <{ type: 'thumbnail' | 'pdf', S3Url: string }> {
+function resizeAndUploadImage(file: string, sizes: Array<{ width: number, height: number }>, quality: number, fileType: 'png' | 'jpeg' | 'webp', type: 'thumbnail' | 'pdf' | 'crop'): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
   const posterImg = Buffer.from(file.split('data:image/png;base64,')[1], 'base64');
 
   return new Promise((resolveFn) => { // promise for the overall resize img function
-    const promiseArr: Array<{ type: 'thumbnail' | 'pdf', S3Url: string }> = [];
-    let returnData: { type: 'thumbnail' | 'pdf', S3Url: string };
+    const promiseArr: Array<{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> = [];
+    let returnData: { type: 'thumbnail' | 'pdf' | 'crop', S3Url: string };
 
     sizes.forEach((size) => {
       const promise: any = new Promise((resolve, reject) => { // promise for each size of the image
         sharp(posterImg)
           .clone()
-          .resize(size.width)
-          .toFormat(type, { quality })
+          .resize(size.width, size.height)
+          .toFormat(fileType, { quality })
           .toBuffer()
           .then(
-            (buffer) => {
+            (buffer: any) => {
               // might be nice for a more descriptive name eventually
-              const key = `poster-${name}-${Date.now()}.${type}`;
+              const key = `poster-${type}-${Date.now()}.${fileType}`;
               uploadToS3(buffer, key, (err: Error, data: any) => {
                 if (err) {
                   console.error(err);
                   reject(err);
                 }
-                returnData = {type: 'thumbnail', S3Url: data.Location};
+                returnData = {type, S3Url: data.Location};
                 resolve();
               });
             },
-            (err) => console.log('Sharp Err: ', err),
+            (err: any) => console.log('Sharp Err: ', err),
           );
       });
       promiseArr.push(promise);
@@ -94,7 +111,7 @@ function resizeAndUploadImage(file: string, sizes: Array<{ width: number }>, qua
 /////////////////// PDF Processing
 ///////////////////////////////////////////////////////
 
-function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape', size: 'Small' | 'Medium' | 'Large'): Promise <{ type: 'thumbnail' | 'pdf', S3Url: string }> {
+export function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape', size: 'Small' | 'Medium' | 'Large'): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
   // sizing quantified in points which is 1 inch x 72
   let short: number;
   let long: number;
@@ -137,6 +154,7 @@ function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape'
             if (err) {
               // console.error('S3 upload err: ', err);
             }
+            console.log('PDF DATA: ', data);
             resolve({ type: 'pdf', S3Url: data.Location });
           });
         });
@@ -186,20 +204,18 @@ function convertColorspace(image: string): Promise<Buffer> {
 ///////////////////////////////////////////////////////
 
 function uploadToS3(buffer: Buffer, destFileName: string, callback: any) {
-  return new Promise((resolve, reject) => {
-    photoBucket
-      .upload({
-          ACL: 'public-read',
-          Body: buffer,
-          Bucket: bucketName,
-          ContentType: 'application/octet-stream', // force download if it's accessed as a top location
-          Key: destFileName, // file name
-      })
-      // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3/ManagedUpload.html#httpUploadProgress-event
-      // .on('httpUploadProgress', function(evt) { console.log(evt); })
-      // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3/ManagedUpload.html#send-property
-      .send(callback);
-    });
+  photoBucket
+    .upload({
+        ACL: 'public-read',
+        Body: buffer,
+        Bucket: bucketName,
+        ContentType: 'application/octet-stream', // force download if it's accessed as a top location
+        Key: destFileName, // file name
+    })
+    // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3/ManagedUpload.html#httpUploadProgress-event
+    // .on('httpUploadProgress', function(evt) { console.log(evt); })
+    // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3/ManagedUpload.html#send-property
+    .send(callback);
 }
 
 export default router;
