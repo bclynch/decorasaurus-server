@@ -352,6 +352,7 @@ CREATE TABLE decorasaurus.cart_item (
   quantity             INTEGER NOT NULL CHECK (quantity > 0),
   size                 decorasaurus.product_size NOT NULL,
   orientation          decorasaurus.product_orientation NOT NULL,
+  fusion_type          TEXT,
   font_color           TEXT,
   background_color     TEXT,
   title_text           TEXT,
@@ -374,6 +375,7 @@ COMMENT ON COLUMN decorasaurus.cart_item.product_sku IS 'Reference to product';
 COMMENT ON COLUMN decorasaurus.cart_item.quantity IS 'Quantity of cart item';
 COMMENT ON COLUMN decorasaurus.cart_item.size IS 'Size of cart item';
 COMMENT ON COLUMN decorasaurus.cart_item.orientation IS 'Orientation of cart item';
+COMMENT ON COLUMN decorasaurus.cart_item.orientation IS 'Fusion type of of cart item';
 COMMENT ON COLUMN decorasaurus.cart_item.font_color IS 'Font color of cart item overlay';
 COMMENT ON COLUMN decorasaurus.cart_item.background_color IS 'Background color of cart item overlay';
 COMMENT ON COLUMN decorasaurus.cart_item.title_text IS 'Title of cart item overlay';

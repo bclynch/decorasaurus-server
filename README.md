@@ -9,8 +9,12 @@
 - ~~Create dev / prod env with Moltin and S3 with decorasaurus email~~
 - Fusion / Floyd integration
     - ~~Get curl statement in child spawn working~~
-    - Finish flow
-    - Add login check
+    - ~~Finish flow~~
+    - ~~Add login check~~
+    - Failing out of memory with 2mb photoon postman, but works with 600kb photo. Maybe cap at 1mb?
+    - Node request not working...
+    - Curl does work usually from terminal. This whole thing is a bit finicky though... Might have to do manually for a bit until I can get it sorted... 
+    - Running sendToFloyd fn on its own will work for a image fine (worked with 600kb img), but not when queued up with other commands for some reason (usually).
 - Cloudflare integration
 - Setup postmark email
 

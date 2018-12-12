@@ -112,6 +112,7 @@ function resizeAndUploadImage(file: string, sizes: Array<{ width: number, height
 ///////////////////////////////////////////////////////
 
 export function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape', size: 'Small' | 'Medium' | 'Large'): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
+  console.log('processing pdf');
   // sizing quantified in points which is 1 inch x 72
   let short: number;
   let long: number;
