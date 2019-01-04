@@ -933,6 +933,26 @@ $$ language sql stable;
 
 COMMENT ON FUNCTION decorasaurus.current_producer() IS 'Gets the producer that was identified by our JWT.';
 
+DROP TYPE IF EXISTS admin_type;
+CREATE TYPE admin_type AS (
+  id UUID,
+  email TEXT
+);
+
+CREATE FUNCTION decorasaurus.current_admin() 
+  RETURNS admin_type 
+  AS $$
+  SELECT
+    decorasaurus.customer.id,
+    decorasaurus_private.admin_account.email
+  FROM decorasaurus.customer
+	INNER JOIN decorasaurus_private.admin_account
+	ON decorasaurus.customer.id = decorasaurus_private.admin_account.account_id
+  WHERE decorasaurus.customer.id = current_setting('jwt.claims.customer_id', true)::UUID
+$$ language sql stable;
+
+COMMENT ON FUNCTION decorasaurus.current_admin() IS 'Gets the admin that was identified by our JWT.';
+
 -- *******************************************************************
 -- ************************* Security *********************************
 -- *******************************************************************
@@ -950,6 +970,7 @@ GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_admin_account(TEXT, TEXT) TO
 GRANT EXECUTE ON FUNCTION decorasaurus.authenticate_user_producer(TEXT, TEXT) TO decorasaurus_anonymous, decorasaurus_producer;
 GRANT EXECUTE ON FUNCTION decorasaurus.current_customer() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION decorasaurus.current_producer() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION decorasaurus.current_admin() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION uuid_generate_v1mc() TO PUBLIC;
 
 -- ///////////////// RLS Policies ////////////////////////////////
