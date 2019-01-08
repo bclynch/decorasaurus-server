@@ -508,14 +508,15 @@ CREATE TABLE decorasaurus.order_item (
   size                 decorasaurus.product_size NOT NULL,
   orientation          decorasaurus.product_orientation NOT NULL,
   fusion_type          TEXT,
+  is_processed         BOOLEAN NOT NULL default true,
   created_at           BIGINT default (extract(epoch from now()) * 1000),
   updated_at           TIMESTAMP default now()
 );
 
-INSERT INTO decorasaurus.order_item (id, order_id, product_sku, amount, currency, quantity, size, orientation, fusion_type) values
-  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e9', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'fusion', 6000, 'USD', 1, 'medium', 'portrait', 'udnie'),
-  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'patent', 6000, 'USD', 1, 'small', 'portrait', NULL),
-  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e8', 'fusion', 6000, 'USD', 1, 'large', 'portrait', 'wave');
+INSERT INTO decorasaurus.order_item (id, order_id, product_sku, amount, currency, quantity, size, orientation, fusion_type, is_processed) values
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e9', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'fusion', 6000, 'USD', 1, 'medium', 'portrait', 'udnie', true),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e7', 'patent', 6000, 'USD', 1, 'small', 'portrait', NULL, true),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', '9d4d80a0-fbea-11e8-88dc-4b3b1a3412e8', 'fusion', 6000, 'USD', 1, 'large', 'portrait', 'wave', false);
 
 
 CREATE TRIGGER order_item_INSERT_UPDATE_DELETE
@@ -531,7 +532,8 @@ COMMENT ON COLUMN decorasaurus.order_item.currency IS 'Currency paid for the ord
 COMMENT ON COLUMN decorasaurus.order_item.quantity IS 'Quantity of the order item';
 COMMENT ON COLUMN decorasaurus.order_item.size IS 'Size of the order item';
 COMMENT ON COLUMN decorasaurus.order_item.orientation IS 'Orientation of the order item';
-COMMENT ON COLUMN decorasaurus.order_item.orientation IS 'Fusion type for fusion posters';
+COMMENT ON COLUMN decorasaurus.order_item.fusion_type IS 'Fusion type for fusion posters';
+COMMENT ON COLUMN decorasaurus.order_item.is_processed IS 'Whether the poster is finished processing';
 COMMENT ON COLUMN decorasaurus.order_item.created_at IS 'When order created';
 COMMENT ON COLUMN decorasaurus.order_item.updated_at IS 'When order last updated';
 

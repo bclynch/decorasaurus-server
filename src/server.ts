@@ -6,6 +6,7 @@ dotenv.config();
 import express from 'express';
 import fs from 'fs';
 import morgan from 'morgan';
+import floydRouter from './floyd';
 import { init } from './fusion';
 import patentRouter from './patent';
 import posterRouter from './poster';
@@ -51,7 +52,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // set up cron job for processing fusion images
-if (process.env.NODE_ENV === 'production') init();
+// if (process.env.NODE_ENV === 'production') init();
 // init();
 
 // set up the logger
@@ -64,6 +65,7 @@ router.use('/patent', patentRouter);
 router.use('/stripe', stripeRouter);
 router.use('/poster', posterRouter);
 router.use('/shippo', shippoRouter);
+router.use('/floyd', floydRouter);
 
 // api mount path
 app.use('/api', router);
