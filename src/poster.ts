@@ -7,6 +7,7 @@ import multer from 'multer';
 import pdfMake from 'pdfmake/build/pdfmake';
 // @ts-ignore
 import sharp from 'sharp';
+import { ProductOrientation, ProductSize } from '../types/product.type';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 25 * 1024 * 1024 * 1024 } });
 // Access key and secret id being pulled from env vars and in my drive as backup
@@ -111,23 +112,25 @@ function resizeAndUploadImage(file: string, sizes: Array<{ width: number, height
 /////////////////// PDF Processing
 ///////////////////////////////////////////////////////
 
-export function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Landscape', size: 'Small' | 'Medium' | 'Large'): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
+export function createAndUploadPDF(image: string, orientation: ProductOrientation, size: ProductSize): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
   console.log('processing pdf');
+  console.log('SIZE: ', size);
+  console.log(ProductSize.SMALL);
   // sizing quantified in points which is 1 inch x 72
   let short: number;
   let long: number;
-  if (size === 'Small') {
+  if (size === ProductSize.SMALL) {
     short = 8 * 72;
     long = 12 * 72;
-  } else if (size === 'Medium') {
+  } else if (ProductSize.MEDIUM) {
     short = 12 * 72;
     long = 18 * 72;
   } else {
     short = 18 * 72;
     long = 27 * 72;
   }
-  const height = orientation === 'Portrait' ?  long : short;
-  const width = orientation === 'Portrait' ?  short : long;
+  const height = orientation === ProductOrientation.PORTRAIT ?  long : short;
+  const width = orientation === ProductOrientation.PORTRAIT ?  short : long;
   return new Promise((resolve) => {
     // convertColorspace(image).then(
     //   (buffer: any) => {
@@ -153,7 +156,7 @@ export function createAndUploadPDF(image: string, orientation: 'Portrait' | 'Lan
           const key = `poster-pdf-${Date.now()}.pdf`;
           uploadToS3(posterImg, key, (err: Error, data: any) => {
             if (err) {
-              // console.error('S3 upload err: ', err);
+              console.error('S3 upload err: ', err);
             }
             console.log('PDF DATA: ', data);
             resolve({ type: 'pdf', S3Url: data.Location });

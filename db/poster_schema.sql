@@ -560,7 +560,8 @@ INSERT INTO decorasaurus.product_links (order_item_id, type, url) values
   ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e9', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg'),
   ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', 'pdf', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-pdf-1544368434960.pdf'),
   ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e1', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg'),
-  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg');
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', 'thumbnail', 'https://packonmyback-dev.s3.us-west-1.amazonaws.com/poster-thumbnail-1544368434981.jpeg'),
+  ('9d4d80a0-fbea-11e8-88dc-4b3b1a3412e2', 'crop', 'https://s3-us-west-1.amazonaws.com/packonmyback-dev/posterRaw1.jpeg');
 
 CREATE TRIGGER product_links_INSERT_UPDATE_DELETE
 AFTER INSERT OR UPDATE OR DELETE ON decorasaurus.product_links

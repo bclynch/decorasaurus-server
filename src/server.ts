@@ -7,7 +7,7 @@ import express from 'express';
 import fs from 'fs';
 import morgan from 'morgan';
 import floydRouter from './floyd';
-import { init } from './fusion';
+// import { init } from './fusion';
 import patentRouter from './patent';
 import posterRouter from './poster';
 import posterizeRouter from './posterize';
