@@ -114,23 +114,21 @@ function resizeAndUploadImage(file: string, sizes: Array<{ width: number, height
 
 export function createAndUploadPDF(image: string, orientation: ProductOrientation, size: ProductSize): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
   console.log('processing pdf');
-  console.log('SIZE: ', size);
-  console.log(ProductSize.SMALL);
   // sizing quantified in points which is 1 inch x 72
   let short: number;
   let long: number;
-  if (size === ProductSize.SMALL) {
+  if (size.toLowerCase() === ProductSize.SMALL.toLowerCase()) {
     short = 8 * 72;
     long = 12 * 72;
-  } else if (ProductSize.MEDIUM) {
+  } else if (size.toLowerCase() === ProductSize.MEDIUM.toLowerCase()) {
     short = 12 * 72;
     long = 18 * 72;
   } else {
     short = 18 * 72;
     long = 27 * 72;
   }
-  const height = orientation === ProductOrientation.PORTRAIT ?  long : short;
-  const width = orientation === ProductOrientation.PORTRAIT ?  short : long;
+  const height = orientation.toLowerCase() === ProductOrientation.PORTRAIT.toLowerCase() ?  long : short;
+  const width = orientation.toLowerCase() === ProductOrientation.PORTRAIT.toLowerCase() ?  short : long;
   return new Promise((resolve) => {
     // convertColorspace(image).then(
     //   (buffer: any) => {
