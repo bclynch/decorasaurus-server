@@ -164,7 +164,8 @@ function sendToFloydhub(painting: 'udnie' | 'rain_princess' | 'scream' | 'wave' 
     // max buffer has to be big enough default is 200 kb this is 10000 or 10mb. Increase as required
     // also max buffer isnt in the types file (@types/node/index.d.ts) for some reason. I've added it locally, but maybe turn off?
     // Need to add prop maxBuffer?: number; to interface SpawnOptions
-    const child = spawn('curl', args, { shell: true, maxBuffer: 1024 * 10000 });
+    const abc: any = { shell: true, maxBuffer: 1024 * 10000 };
+    const child = spawn('curl', args, { ...abc });
     child.stderr.on('data', (data: any) => {
       console.error('STDERR:', data.toString());
     });

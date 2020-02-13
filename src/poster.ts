@@ -1,11 +1,8 @@
 import aws from 'aws-sdk';
 import express from 'express';
 const router = express.Router();
-// @ts-ignore
-import imagemagick from 'imagemagick-native';
 import multer from 'multer';
-import pdfMake from 'pdfmake/build/pdfmake';
-// @ts-ignore
+import pdfMake, { TDocumentDefinitions } from 'pdfmake/build/pdfmake';
 import sharp from 'sharp';
 import { ProductOrientation, ProductSize } from '../types/product.type';
 
@@ -17,7 +14,7 @@ const photoBucket = process.env.NODE_ENV === 'production' ? new aws.S3({params: 
 
 router.post('/process', upload.fields([{ name: 'poster', maxCount: 1 }, { name: 'crop', maxCount: 1 }]), (req, res) => {
 
-  const S3LinksArr: Array<{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> = [];
+  const S3LinksArr: { type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }[] = [];
 
   const promises = [];
   // create local thumbnail 220 x 330 jpg (will depend on orientation) and upload to S3 and return with response to be added to custom product field
@@ -68,11 +65,11 @@ router.post('/process', upload.fields([{ name: 'poster', maxCount: 1 }, { name: 
 ///////////////////////////////////////////////////////
 
 // Take in img file, what sizes we would like, and the quality of img
-function resizeAndUploadImage(file: string, sizes: Array<{ width: number, height: number }>, quality: number, fileType: 'png' | 'jpeg' | 'webp', type: 'thumbnail' | 'pdf' | 'crop'): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
+function resizeAndUploadImage(file: string, sizes: { width: number, height: number }[], quality: number, fileType: 'png' | 'jpeg' | 'webp', type: 'thumbnail' | 'pdf' | 'crop'): Promise <{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> {
   const posterImg = Buffer.from(file.split('data:image/png;base64,')[1], 'base64');
 
   return new Promise((resolveFn) => { // promise for the overall resize img function
-    const promiseArr: Array<{ type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }> = [];
+    const promiseArr: { type: 'thumbnail' | 'pdf' | 'crop', S3Url: string }[] = [];
     let returnData: { type: 'thumbnail' | 'pdf' | 'crop', S3Url: string };
 
     sizes.forEach((size) => {
@@ -132,7 +129,7 @@ export function createAndUploadPDF(image: string, orientation: ProductOrientatio
   return new Promise((resolve) => {
     // convertColorspace(image).then(
     //   (buffer: any) => {
-        const docDefinition = {
+        const docDefinition: TDocumentDefinitions = {
           content: [
             {
               height,

@@ -3,7 +3,7 @@ const router = express.Router();
 import dotenv from 'dotenv';
 dotenv.config();
 import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPESECRET);
+const stripe = new Stripe(process.env.STRIPESECRET, { apiVersion: '2019-12-03' });
 
 router.post('/create-customer', (req, res) => {
 
@@ -26,7 +26,7 @@ router.post('/fetch-customer', (req, res) => {
 
 router.post('/delete-card', (req, res) => {
 
-  stripe.customers.deleteCard(
+  stripe.customers.deleteSource(
     req.body.customerId,
     req.body.cardId,
   ).then(
