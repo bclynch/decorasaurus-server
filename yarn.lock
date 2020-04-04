@@ -527,9 +527,9 @@ acorn-walk@^7.0.0:
   integrity sha1-SDh6qag7umepkJFkrKtLvFeWz4c=
 
 acorn@^5.0.0:
-  version "5.7.3"
-  resolved "https://artifacts.mlbinfra.net:443/artifactory/api/npm/web-npm/acorn/-/acorn-5.7.3.tgz#67aa231bf8812974b85235a96771eb6bd07ea279"
-  integrity sha1-Z6ojG/iBKXS4UjWpZ3Hra9B+onk=
+  version "5.7.4"
+  resolved "https://registry.yarnpkg.com/acorn/-/acorn-5.7.4.tgz#3e8d8a9947d0599a1796d10225d7432f4a4acf5e"
+  integrity sha512-1D++VG7BhrtvQpNbBzovKNc1FLGGEE/oGe7b9xJm/RFHMBeUaUGpluV9RLjZa47YFdPcDAenEYuq9pQPcMdLJg==
 
 acorn@^7.0.0:
   version "7.1.0"
@@ -719,10 +719,10 @@ atob@^2.1.2:
   resolved "https://artifacts.mlbinfra.net:443/artifactory/api/npm/web-npm/atob/-/atob-2.1.2.tgz#6d9517eb9e030d2436666651e86bd9f6f13533c9"
   integrity sha1-bZUX654DDSQ2ZmZR6GvZ9vE1M8k=
 
-aws-sdk@^2.386.0:
-  version "2.617.0"
-  resolved "https://artifacts.mlbinfra.net:443/artifactory/api/npm/web-npm/aws-sdk/-/aws-sdk-2.617.0.tgz#aa040a75b78494dafdec9c6cce9dc0b6933e19d7"
-  integrity sha1-qgQKdbeElNr97Jxszp3AtpM+Gdc=
+aws-sdk@^2.617.0:
+  version "2.653.0"
+  resolved "https://registry.yarnpkg.com/aws-sdk/-/aws-sdk-2.653.0.tgz#53fa0b8cd5c05fb2244df262f2a01de526376543"
+  integrity sha512-vtpHfoAKoudNa5kknUgQeXzdnmkI63hqKYHuk5u7mx0HelP8iybTxmKfKENlOvkfKtBdCEbcmJRa3DxZUbQPHQ==
   dependencies:
     buffer "4.9.1"
     events "1.1.1"
